@@ -51,7 +51,7 @@ endfunction()
 # apps
 #
 
-set(single_file_demos cube_ta cube_ta_fullscreen cube_ta_fullscreen_textured maple)
+set(single_file_demos cube_ta cube_ta_fullscreen cube_ta_fullscreen_textured maple maple2)
 
 foreach(demo IN LISTS single_file_demos)
 	add_executable(${demo} apps/${demo}.c)
