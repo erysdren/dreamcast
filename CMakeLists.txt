@@ -20,7 +20,6 @@ target_compile_options(runtime INTERFACE
 	$<$<COMPILE_LANGUAGE:C,CXX>:-ffreestanding>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-nostdlib>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-Og>
-	$<$<COMPILE_LANGUAGE:C,CXX>:-falign-functions=4>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-ffunction-sections>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-fdata-sections>
 	$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
@@ -52,13 +51,10 @@ endfunction()
 # apps
 #
 
-add_executable(cube_ta_fullscreen apps/cube_ta_fullscreen.c)
-target_link_libraries(cube_ta_fullscreen PUBLIC runtime)
-copy_binary(cube_ta_fullscreen)
+set(single_file_demos cube_ta cube_ta_fullscreen)
 
-if(0)
-file(GLOB apps LIST_DIRECTORIES TRUE "${CMAKE_SOURCE_DIR}/apps/**")
-foreach(app IN LISTS apps)
-	add_subdirectory(${app})
+foreach(demo IN LISTS single_file_demos)
+	add_executable(${demo} apps/${demo}.c)
+	target_link_libraries(${demo} PUBLIC runtime)
+	copy_binary(${demo})
 endforeach()
-endif()
