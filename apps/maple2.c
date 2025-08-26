@@ -1,5 +1,9 @@
 #include <stdint.h>
 
+// the Maple bus protocol is big endian, but the SH4 is running in little endian mode
+#define bswap32 __builtin_bswap32
+#define bswap16 __builtin_bswap16
+
 //
 // SH4 SCIF definitions
 //
@@ -333,11 +337,7 @@ void maple_get_condition(uint8_t * send_buf, uint8_t * recv_buf)
   host_command->protocol_header.data_size = 4 / 4;
 
   uint8_t * parameter = (uint8_t *)send_buf + sizeof(maple_host_command);
-
-  parameter[0] = 0;
-  parameter[1] = 0;
-  parameter[2] = 0;
-  parameter[3] = 1;
+  *(uint32_t *)parameter = bswap32(0x00000001);
 }
 
 void maple_device_request(uint8_t * send_buf, uint8_t * recv_buf)
@@ -431,10 +431,6 @@ void main()
     print_base16(host_reply->protocol_header.data_size, 2); character('\n');
 
     maple_data_transfer * data_transfer = (maple_data_transfer *)(recv_buf + (sizeof (maple_host_reply)));
-
-    // the Maple bus protocol is big endian, but the SH4 is running in little endian mode
-    #define bswap32 __builtin_bswap32
-    #define bswap16 __builtin_bswap16
 
     string("  data_transfer:\n");
     string("    function_type: ");
