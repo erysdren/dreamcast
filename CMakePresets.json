@@ -1,0 +1,48 @@
+{
+	"version": 10,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 21,
+		"patch": 0
+	},
+	"configurePresets": [
+		{
+			"name": "Default",
+			"displayName": "Default",
+			"binaryDir": "build",
+			"cacheVariables": {
+				"CMAKE_TOOLCHAIN_FILE": "cmake/toolchain.cmake"
+			}
+		},
+		{
+			"name": "Debug",
+			"displayName": "Debug",
+			"inherits": "Default",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			}
+		},
+		{
+			"name": "Release",
+			"displayName": "Release",
+			"inherits": "Default",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "Default",
+			"configurePreset": "Default"
+		},
+		{
+			"name": "Debug",
+			"configurePreset": "Debug"
+		},
+		{
+			"name": "Release",
+			"configurePreset": "Release"
+		}
+	]
+}
