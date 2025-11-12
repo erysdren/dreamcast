@@ -10,9 +10,7 @@
 			"name": "Default",
 			"displayName": "Default",
 			"binaryDir": "build",
-			"cacheVariables": {
-				"CMAKE_TOOLCHAIN_FILE": "cmake/toolchain.cmake"
-			}
+			"toolchainFile": "cmake/toolchain.cmake"
 		},
 		{
 			"name": "Debug",
