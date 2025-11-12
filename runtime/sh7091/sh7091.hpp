@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cstddef>
 
-#include "type.hpp"
+#include "runtime.h"
 
 struct ccn_reg {
   reg32 PTEH;                /* Page table entry high register */

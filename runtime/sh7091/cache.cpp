@@ -1,4 +1,4 @@
-#include "type.hpp"
+#include "runtime.h"
 #include "sh7091.hpp"
 #include "sh7091_bits.hpp"
 
