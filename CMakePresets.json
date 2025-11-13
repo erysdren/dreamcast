@@ -11,36 +11,12 @@
 			"displayName": "Default",
 			"binaryDir": "build",
 			"toolchainFile": "cmake/toolchain.cmake"
-		},
-		{
-			"name": "Debug",
-			"displayName": "Debug",
-			"inherits": "Default",
-			"cacheVariables": {
-				"CMAKE_BUILD_TYPE": "Debug"
-			}
-		},
-		{
-			"name": "Release",
-			"displayName": "Release",
-			"inherits": "Default",
-			"cacheVariables": {
-				"CMAKE_BUILD_TYPE": "Release"
-			}
 		}
 	],
 	"buildPresets": [
 		{
 			"name": "Default",
 			"configurePreset": "Default"
-		},
-		{
-			"name": "Debug",
-			"configurePreset": "Debug"
-		},
-		{
-			"name": "Release",
-			"configurePreset": "Release"
 		}
 	]
 }
