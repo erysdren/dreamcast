@@ -43,7 +43,7 @@ function(copy_binary target)
 	add_custom_command(
 		TARGET ${target}
 		POST_BUILD
-		COMMAND ${CMAKE_OBJCOPY} ARGS -O binary $<TARGET_FILE:${target}> ${PROJECT_BINARY_DIR}/${target}.bin
+		COMMAND ${CMAKE_OBJCOPY} ARGS -O binary $<TARGET_FILE:${target}> ${PROJECT_BINARY_DIR}/$<TARGET_NAME:${target}>.bin
 	)
 endfunction()
 
