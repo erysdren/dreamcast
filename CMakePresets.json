@@ -10,7 +10,8 @@
 			"name": "Default",
 			"displayName": "Default",
 			"binaryDir": "build",
-			"toolchainFile": "cmake/toolchain.cmake"
+			"toolchainFile": "cmake/toolchain.cmake",
+			"generator": "Ninja"
 		}
 	],
 	"buildPresets": [
