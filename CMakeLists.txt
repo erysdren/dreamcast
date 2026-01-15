@@ -47,6 +47,14 @@ function(copy_binary target)
 	)
 endfunction()
 
+function(make_cdi target)
+	add_custom_command(
+		TARGET ${target}
+		POST_BUILD
+		COMMAND mkdcdisc ARGS -e $<TARGET_FILE:${target}> -o ${PROJECT_BINARY_DIR}/$<TARGET_NAME:${target}>.cdi -N
+	)
+endfunction()
+
 #
 # apps
 #
@@ -57,4 +65,5 @@ foreach(demo IN LISTS single_file_demos)
 	add_executable(${demo} apps/${demo}.c)
 	target_link_libraries(${demo} PUBLIC runtime)
 	copy_binary(${demo})
+	make_cdi(${demo})
 endforeach()
