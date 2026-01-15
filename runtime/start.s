@@ -12,21 +12,21 @@ _start:
         and     r0,r2
         ldc     r2,sr
 
-	/* save pr */
-	sts.l pr,@-r15
+        /* save pr */
+        sts.l pr,@-r15
 
         /* jump to runtime_init */
         mov.l runtime_init_ptr,r0
         jsr @r0
         nop
 
-	/* restore pr */
-	lds.l @r15+,pr
+        /* restore pr */
+        lds.l @r15+,pr
 
-	/* jump to main */
-	mov.l main_ptr,r0
-	jmp @r0
-	nop
+        /* jump to main */
+        mov.l main_ptr,r0
+        jmp @r0
+        nop
 
         .align 4
 stack_end_ptr:
@@ -38,4 +38,4 @@ zero_rb:
 runtime_init_ptr:
         .long _runtime_init
 main_ptr:
-	.long _main
+        .long _main
