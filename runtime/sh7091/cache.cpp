@@ -7,7 +7,7 @@
 extern volatile reg32 sh7091_ic_a[256][(1 << 5) / 4] __asm("sh7091_ic_a");
 extern volatile reg32 sh7091_oc_a[512][(1 << 5) / 4] __asm("sh7091_oc_a");
 
-namespace cache {
+namespace sh7091::cache {
 
 void init()
 {
@@ -35,4 +35,4 @@ void init()
 	asm volatile ("nop;nop;nop;nop;nop;nop;nop;nop;");
 }
 
-} // namespace cache
+} // namespace sh7091::cache

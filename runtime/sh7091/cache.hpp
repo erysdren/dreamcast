@@ -1,7 +1,7 @@
 #pragma once
 
-namespace cache {
+namespace sh7091::cache {
 
 void init() __attribute__ ((section (".text.startup.cache_init")));
 
-} // namespace cache
+} // namespace sh7091::cache

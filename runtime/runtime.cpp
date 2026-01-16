@@ -2,6 +2,7 @@
 #include <type_traits>
 
 #include "sh7091/cache.hpp"
+#include "sh7091/store_queue_transfer.hpp"
 
 extern uint32_t __text_link_start __asm("__text_link_start");
 extern uint32_t __text_link_end __asm("__text_link_end");
@@ -35,7 +36,7 @@ static void __attribute__((section(".text.startup.copy"))) copy(uint32_t* start,
 extern "C" void __attribute__((section(".text.startup.runtime_init"))) runtime_init()
 {
 	// init sh7091 cache
-	cache::init();
+	sh7091::cache::init();
 
 	// relocate text (if necessary)
 	copy(&__text_link_start, &__text_link_end, &__text_load_start);
@@ -46,20 +47,16 @@ extern "C" void __attribute__((section(".text.startup.runtime_init"))) runtime_i
 	// relocate rodata (if necessary)
 	copy(&__rodata_link_start, &__rodata_link_end, &__rodata_load_start);
 
-	uint32_t* start;
-	uint32_t* end;
-
 	// clear BSS
-	start = &__bss_link_start;
-	end = &__bss_link_end;
-	while (start < end) {
-		*start++ = 0;
-	}
+	uint32_t* bss_start = &__bss_link_start;
+	uint32_t* bss_end = &__bss_link_end;
+	uint32_t bss_length = bss_end - bss_start;
+	sh7091::store_queue_transfer::zeroize(bss_start, bss_length, 0);
 
 	// call ctors
-	start = &__ctors_link_start;
-	end = &__ctors_link_end;
-	while (start < end) {
-		((init_t*)(*start++))();
+	uint32_t* ctors_start = &__ctors_link_start;
+	uint32_t* ctors_end = &__ctors_link_end;
+	while (ctors_start < ctors_end) {
+		((init_t*)(*ctors_start++))();
 	}
 }
