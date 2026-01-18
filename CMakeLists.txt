@@ -26,6 +26,8 @@ target_compile_options(runtime INTERFACE
 	$<$<COMPILE_LANGUAGE:C,CXX>:-Og>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-ffunction-sections>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-fdata-sections>
+	$<$<COMPILE_LANGUAGE:C,CXX>:-MMD>
+	$<$<COMPILE_LANGUAGE:C,CXX>:-MP>
 	$<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
 	$<$<COMPILE_LANGUAGE:CXX>:-fno-non-call-exceptions>
 	$<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
@@ -34,8 +36,8 @@ target_compile_options(runtime INTERFACE
 	$<$<COMPILE_LANGUAGE:ASM>:--little>
 )
 target_include_directories(runtime INTERFACE ${PROJECT_SOURCE_DIR}/runtime/)
-target_include_directories(runtime INTERFACE ${PROJECT_SOURCE_DIR}/runtime/sh7091/)
 target_link_directories(runtime INTERFACE ${PROJECT_SOURCE_DIR}/runtime/linker/)
+target_link_libraries(runtime INTERFACE gcc)
 target_link_options(runtime INTERFACE
 	-Wl,-Tmain.lds
 	-Wl,--gc-sections
