@@ -80,3 +80,4 @@ foreach(demo IN LISTS single_file_demos)
 endforeach()
 
 dc_add_app(cube_ta_fullscreen_textured2 SOURCES apps/cube_ta_fullscreen_textured.cpp)
+dc_add_app(font SOURCES apps/font.cpp)
