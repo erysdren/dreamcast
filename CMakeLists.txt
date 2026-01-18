@@ -9,6 +9,7 @@ add_library(runtime INTERFACE)
 target_sources(runtime INTERFACE
 	${PROJECT_SOURCE_DIR}/runtime/start.s
 	${PROJECT_SOURCE_DIR}/runtime/sh7091/cache.cpp
+	${PROJECT_SOURCE_DIR}/runtime/holly/core/region_array.cpp
 	${PROJECT_SOURCE_DIR}/runtime/runtime.cpp
 )
 target_compile_options(runtime INTERFACE
