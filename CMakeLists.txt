@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
 project(dreamcast LANGUAGES C CXX ASM)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+
 #
 # runtime
 #
@@ -40,7 +43,7 @@ target_link_options(runtime INTERFACE
 	-Wl,--entry=_start
 )
 
-function(copy_binary target)
+function(dc_copy_binary target)
 	add_custom_command(
 		TARGET ${target}
 		POST_BUILD
@@ -48,12 +51,20 @@ function(copy_binary target)
 	)
 endfunction()
 
-function(make_cdi target)
+function(dc_make_cdi target)
 	add_custom_command(
 		TARGET ${target}
 		POST_BUILD
 		COMMAND mkdcdisc ARGS -e $<TARGET_FILE:${target}> -o ${PROJECT_BINARY_DIR}/$<TARGET_NAME:${target}>.cdi -N
 	)
+endfunction()
+
+function(dc_add_app name)
+	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "" "SOURCES")
+	add_executable(${name} ${ARG_SOURCES})
+	target_link_libraries(${name} PUBLIC runtime)
+	dc_copy_binary(${name})
+	dc_make_cdi(${name})
 endfunction()
 
 #
@@ -63,8 +74,7 @@ endfunction()
 set(single_file_demos cube_ta cube_ta_fullscreen cube_ta_fullscreen_textured maple maple2)
 
 foreach(demo IN LISTS single_file_demos)
-	add_executable(${demo} apps/${demo}.c)
-	target_link_libraries(${demo} PUBLIC runtime)
-	copy_binary(${demo})
-	make_cdi(${demo})
+	dc_add_app(${demo} SOURCES apps/${demo}.c)
 endforeach()
+
+dc_add_app(cube_ta_fullscreen_textured2 SOURCES apps/cube_ta_fullscreen_textured.cpp)
