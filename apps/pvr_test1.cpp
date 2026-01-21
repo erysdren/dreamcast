@@ -15,7 +15,7 @@
 #include "sh7091/pref.hpp"
 #include "sh7091/store_queue_transfer.hpp"
 
-#define ROMFS_SOURCE_FILENAME "dc_map01_minimal.h"
+#define ROMFS_SOURCE_FILENAME "dc_map01_minimal.pk3.h"
 #include "romfs.c"
 
 #define TEXTURE_PATH "textures/base_wall/bluemetal3.pvr"
