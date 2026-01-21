@@ -81,3 +81,4 @@ endforeach()
 
 dc_add_app(cube_ta_fullscreen_textured2 SOURCES apps/cube_ta_fullscreen_textured.cpp)
 dc_add_app(font SOURCES apps/font.cpp)
+dc_add_app(pvr_test1 SOURCES apps/pvr_test1.cpp)
