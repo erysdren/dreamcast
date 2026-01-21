@@ -61,6 +61,15 @@ function(dc_make_cdi target)
 	)
 endfunction()
 
+function(dc_make_romfs target source destination)
+	add_custom_command(
+		TARGET ${target}
+		PRE_BUILD
+		WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/apps
+		COMMAND zip2rom ARGS ${source} ${destination}
+	)
+endfunction()
+
 function(dc_add_app name)
 	cmake_parse_arguments(PARSE_ARGV 1 ARG "" "" "SOURCES")
 	add_executable(${name} ${ARG_SOURCES})
@@ -83,3 +92,4 @@ dc_add_app(cube_ta_fullscreen_textured2 SOURCES apps/cube_ta_fullscreen_textured
 dc_add_app(font SOURCES apps/font.cpp)
 dc_add_app(pvr_test1 SOURCES apps/pvr_test1.cpp)
 dc_add_app(dreamcasko SOURCES apps/dreamcasko.cpp)
+dc_make_romfs(dreamcasko dreamcasko.pk3 dreamcasko.pk3.h)
