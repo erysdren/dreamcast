@@ -264,10 +264,14 @@ void transfer_scene(uint32_t texture_address)
 
   store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_address);
 
-  store_queue_ix = transfer_glyph(store_queue_ix,
-                                  ter_u12n,
-                                  vec2(10, 10),
-                                  'a');
+  const char str[] = "hello world!";
+
+  vec2 pos = {10, 10};
+  for (size_t i = 0; i < sizeof(str); i++)
+  {
+    store_queue_ix = transfer_glyph(store_queue_ix, ter_u12n, pos, str[i]);
+    pos.x += 10;
+  }
 
   store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
 }
