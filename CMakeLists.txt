@@ -89,6 +89,7 @@ foreach(demo IN LISTS single_file_demos)
 endforeach()
 
 dc_add_app(cube_ta_fullscreen_textured2 SOURCES apps/cube_ta_fullscreen_textured.cpp)
+dc_add_app(cube_ta_fullscreen_textured_punch_through SOURCES apps/cube_ta_fullscreen_textured_punch_through.cpp)
 dc_add_app(font SOURCES apps/font.cpp)
 dc_add_app(pvr_test1 SOURCES apps/pvr_test1.cpp)
 # dc_make_romfs(pvr_test1 dc_map01_minimal.pk3 dc_map01_minimal.pk3.h)
