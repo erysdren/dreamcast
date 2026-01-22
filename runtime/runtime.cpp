@@ -3,6 +3,7 @@
 
 #include "sh7091/cache.hpp"
 #include "sh7091/store_queue_transfer.hpp"
+#include "sh7091/serial.hpp"
 
 extern uint32_t __text_link_start __asm("__text_link_start");
 extern uint32_t __text_link_end __asm("__text_link_end");
@@ -59,4 +60,7 @@ extern "C" void __attribute__((section(".text.startup.runtime_init"))) runtime_i
 	while (ctors_start < ctors_end) {
 		((init_t*)(*ctors_start++))();
 	}
+
+	// init serial interface
+	sh7091::serial::init(0);
 }

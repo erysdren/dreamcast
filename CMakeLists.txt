@@ -11,7 +11,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 add_library(runtime INTERFACE)
 target_sources(runtime INTERFACE
 	${PROJECT_SOURCE_DIR}/runtime/start.s
+	${PROJECT_SOURCE_DIR}/runtime/sh7091/c_serial.cpp
 	${PROJECT_SOURCE_DIR}/runtime/sh7091/cache.cpp
+	${PROJECT_SOURCE_DIR}/runtime/sh7091/serial.cpp
 	${PROJECT_SOURCE_DIR}/runtime/holly/core/region_array.cpp
 	${PROJECT_SOURCE_DIR}/runtime/runtime.cpp
 )
