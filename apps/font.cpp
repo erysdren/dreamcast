@@ -270,7 +270,7 @@ void transfer_scene(uint32_t texture_address)
   for (size_t i = 0; i < sizeof(str); i++)
   {
     store_queue_ix = transfer_glyph(store_queue_ix, ter_u12n, pos, str[i]);
-    pos.x += 10;
+    pos.x += ter_u12n.glyph_width;
   }
 
   store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
