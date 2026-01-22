@@ -18,6 +18,13 @@ enum {
 	PVR_IMAGE_TYPE_RECTANGULAR_MM = 10
 };
 
+typedef struct gbix {
+	uint32_t magic;
+	uint32_t len;
+} gbix_t;
+
+#define GBIX_MAGIC (0x58494247)
+
 typedef struct pvr {
 	uint32_t magic;
 	uint32_t len_file;
@@ -25,6 +32,8 @@ typedef struct pvr {
 	uint16_t width;
 	uint16_t height;
 } pvr_t;
+
+#define PVR_MAGIC (0x54525650)
 
 #define PVR_GET_PIXEL_TYPE(pvr) ((pvr)->type & 0xFF)
 #define PVR_GET_IMAGE_TYPE(pvr) (((pvr)->type & 0xFF00) >> 8)
