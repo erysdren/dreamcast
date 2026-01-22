@@ -16,6 +16,9 @@ target_sources(runtime INTERFACE
 	${PROJECT_SOURCE_DIR}/runtime/sh7091/serial.cpp
 	${PROJECT_SOURCE_DIR}/runtime/holly/core/region_array.cpp
 	${PROJECT_SOURCE_DIR}/runtime/runtime.cpp
+	${PROJECT_SOURCE_DIR}/runtime/printf/unparse.c
+	${PROJECT_SOURCE_DIR}/runtime/printf/printf.c
+	${PROJECT_SOURCE_DIR}/runtime/printf/parse.c
 )
 target_compile_options(runtime INTERFACE
 	$<$<COMPILE_LANGUAGE:C,CXX>:-mfsrra>
