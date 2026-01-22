@@ -24,86 +24,86 @@
 
 void transfer_background_polygon(uint32_t isp_tsp_parameter_start)
 {
-  using namespace holly::core::parameter;
+	using namespace holly::core::parameter;
 
-  using parameter = isp_tsp_parameter<3>;
+	using parameter = isp_tsp_parameter<3>;
 
-  volatile parameter * polygon = (volatile parameter *)&texture_memory32[isp_tsp_parameter_start];
+	volatile parameter * polygon = (volatile parameter *)&texture_memory32[isp_tsp_parameter_start];
 
-  polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::always
-                                    | isp_tsp_instruction_word::culling_mode::no_culling;
+	polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::always
+										| isp_tsp_instruction_word::culling_mode::no_culling;
 
-  polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
-                                | tsp_instruction_word::dst_alpha_instr::zero
-                                | tsp_instruction_word::fog_control::no_fog;
+	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
+									| tsp_instruction_word::dst_alpha_instr::zero
+									| tsp_instruction_word::fog_control::no_fog;
 
-  polygon->texture_control_word = 0;
+	polygon->texture_control_word = 0;
 
-  polygon->vertex[0].x =  0.0f;
-  polygon->vertex[0].y =  0.0f;
-  polygon->vertex[0].z =  0.00001f;
-  polygon->vertex[0].base_color = 0xff00ff;
+	polygon->vertex[0].x =  0.0f;
+	polygon->vertex[0].y =  0.0f;
+	polygon->vertex[0].z =  0.00001f;
+	polygon->vertex[0].base_color = 0xff00ff;
 
-  polygon->vertex[1].x = 32.0f;
-  polygon->vertex[1].y =  0.0f;
-  polygon->vertex[1].z =  0.00001f;
-  polygon->vertex[1].base_color = 0xff00ff;
+	polygon->vertex[1].x = 32.0f;
+	polygon->vertex[1].y =  0.0f;
+	polygon->vertex[1].z =  0.00001f;
+	polygon->vertex[1].base_color = 0xff00ff;
 
-  polygon->vertex[2].x = 32.0f;
-  polygon->vertex[2].y = 32.0f;
-  polygon->vertex[2].z =  0.00001f;
-  polygon->vertex[2].base_color = 0xff00ff;
+	polygon->vertex[2].x = 32.0f;
+	polygon->vertex[2].y = 32.0f;
+	polygon->vertex[2].z =  0.00001f;
+	polygon->vertex[2].base_color = 0xff00ff;
 }
 
 static inline uint32_t transfer_ta_global_end_of_list(uint32_t store_queue_ix)
 {
-  using namespace holly::ta;
-  using namespace holly::ta::parameter;
+	using namespace holly::ta;
+	using namespace holly::ta::parameter;
 
-  //
-  // TA "end of list" global transfer
-  //
-  volatile global_parameter::end_of_list * end_of_list = (volatile global_parameter::end_of_list *)&store_queue[store_queue_ix];
-  store_queue_ix += (sizeof (global_parameter::end_of_list));
+	//
+	// TA "end of list" global transfer
+	//
+	volatile global_parameter::end_of_list * end_of_list = (volatile global_parameter::end_of_list *)&store_queue[store_queue_ix];
+	store_queue_ix += (sizeof (global_parameter::end_of_list));
 
-  end_of_list->parameter_control_word = parameter_control_word::para_type::end_of_list;
+	end_of_list->parameter_control_word = parameter_control_word::para_type::end_of_list;
 
-  // start store queue transfer of `end_of_list` to the TA
-  pref(end_of_list);
+	// start store queue transfer of `end_of_list` to the TA
+	pref(end_of_list);
 
-  return store_queue_ix;
+	return store_queue_ix;
 }
 
 static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint32_t texture_address)
 {
-  using namespace holly::core::parameter;
-  using namespace holly::ta;
-  using namespace holly::ta::parameter;
+	using namespace holly::core::parameter;
+	using namespace holly::ta;
+	using namespace holly::ta::parameter;
 
-  //
-  // TA polygon global transfer
-  //
+	//
+	// TA polygon global transfer
+	//
 
-  volatile global_parameter::polygon_type_0 * polygon = (volatile global_parameter::polygon_type_0 *)&store_queue[store_queue_ix];
-  store_queue_ix += (sizeof (global_parameter::polygon_type_0));
+	volatile global_parameter::polygon_type_0 * polygon = (volatile global_parameter::polygon_type_0 *)&store_queue[store_queue_ix];
+	store_queue_ix += (sizeof (global_parameter::polygon_type_0));
 
-  polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
-                                  | parameter_control_word::list_type::opaque
-                                  | parameter_control_word::col_type::packed_color
-                                  | parameter_control_word::texture;
+	polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
+									| parameter_control_word::list_type::opaque
+									| parameter_control_word::col_type::packed_color
+									| parameter_control_word::texture;
 
-  polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::greater
-                                    | isp_tsp_instruction_word::culling_mode::no_culling;
-  // Note that it is not possible to use
-  // ISP_TSP_INSTRUCTION_WORD::GOURAUD_SHADING in this isp_tsp_instruction_word,
-  // because `gouraud` is one of the bits overwritten by the value in
-  // parameter_control_word. See DCDBSysArc990907E.pdf page 200.
+	polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::greater
+										| isp_tsp_instruction_word::culling_mode::no_culling;
+	// Note that it is not possible to use
+	// ISP_TSP_INSTRUCTION_WORD::GOURAUD_SHADING in this isp_tsp_instruction_word,
+	// because `gouraud` is one of the bits overwritten by the value in
+	// parameter_control_word. See DCDBSysArc990907E.pdf page 200.
 
-  polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
-                                | tsp_instruction_word::dst_alpha_instr::zero
-                                | tsp_instruction_word::fog_control::no_fog
-                                | tsp_instruction_word::filter_mode::point_sampled
-                                | tsp_instruction_word::texture_shading_instruction::decal;
+	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
+									| tsp_instruction_word::dst_alpha_instr::zero
+									| tsp_instruction_word::fog_control::no_fog
+									| tsp_instruction_word::filter_mode::point_sampled
+									| tsp_instruction_word::texture_shading_instruction::decal;
 
 	const pvr_t *pvr = (const pvr_t *)ROMFS_GetFileFromPath(TEXTURE_PATH, NULL);
 
