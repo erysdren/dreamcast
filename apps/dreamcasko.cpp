@@ -18,9 +18,11 @@
 #define ROMFS_SOURCE_FILENAME "dreamcasko.pk3.h"
 #include "romfs.c"
 
-#define TEXTURE_PATH "textures/models/dreamcasko/face.pvr"
+#define TEXTURE_PATH "textures/models/dreamcasko/body.pvr"
+#define MODEL_PATH "models/dreamcasko.md3"
 
 #include "pvr.h"
+#include "md3.h"
 
 void transfer_background_polygon(uint32_t isp_tsp_parameter_start)
 {
@@ -303,7 +305,7 @@ static inline vec3 vertex_rotate(vec3 v)
 
 static inline vec3 vertex_perspective_divide(vec3 v)
 {
-  float w = 1.0f / (v.z + 3.0f);
+  float w = 1.0f / (v.z + 64.0f);
   return (vec3){v.x * w, v.y * w, w};
 }
 
@@ -368,6 +370,75 @@ void transfer_ta_cube(uint32_t texture_address)
   }
 
   store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
+}
+
+static inline vec3 decompress_vertex(md3_vertex_t *vertex)
+{
+	return (vec3){MD3_UNCOMPRESS_POSITION(vertex->position[0]), MD3_UNCOMPRESS_POSITION(vertex->position[1]), MD3_UNCOMPRESS_POSITION(vertex->position[2])};
+}
+
+void transfer_dreamcasko(uint32_t texture_address)
+{
+	md3_t *md3 = (md3_t *)ROMFS_GetFileFromPath(MODEL_PATH, NULL);
+	md3_surface_t *surfaces = MD3_GET_SURFACES(md3);
+
+	{
+		using namespace sh7091;
+		using sh7091::sh7091;
+
+		// set the store queue destination address to the TA Polygon Converter FIFO
+		sh7091.CCN.QACR0 = sh7091::ccn::qacr0::address(ta_fifo_polygon_converter);
+		sh7091.CCN.QACR1 = sh7091::ccn::qacr1::address(ta_fifo_polygon_converter);
+	}
+
+	uint32_t store_queue_ix = 0;
+
+	store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_address);
+
+	md3_surface_t *surface = surfaces;
+	for (int i = 0; i < md3->num_surfaces; i++)
+	{
+		md3_triangle_t *triangles = MD3_SURFACE_GET_TRIANGLES(surface);
+		md3_texcoord_t *texcoords = MD3_SURFACE_GET_TEXCOORDS(surface);
+		md3_vertex_t *vertices = MD3_SURFACE_GET_VERTICES(surface);
+
+		for (int j = 0; j < surface->num_triangles; j++)
+		{
+			md3_triangle_t *triangle = triangles + j;
+			md3_vertex_t *va = vertices + triangle->indices[0];
+			md3_vertex_t *vb = vertices + triangle->indices[1];
+			md3_vertex_t *vc = vertices + triangle->indices[2];
+			md3_texcoord_t *ta = texcoords + triangle->indices[0];
+			md3_texcoord_t *tb = texcoords + triangle->indices[1];
+			md3_texcoord_t *tc = texcoords + triangle->indices[2];
+
+			vec3 vpa = vertex_screen_space(
+						vertex_perspective_divide(
+							vertex_rotate(decompress_vertex(va))));
+
+			vec3 vpb = vertex_screen_space(
+						vertex_perspective_divide(
+							vertex_rotate(decompress_vertex(vb))));
+
+			vec3 vpc = vertex_screen_space(
+						vertex_perspective_divide(
+							vertex_rotate(decompress_vertex(vc))));
+
+			// vertex color is irrelevant in "decal" mode
+			uint32_t va_color = 0;
+			uint32_t vb_color = 0;
+			uint32_t vc_color = 0;
+
+			store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
+														vpa.x, vpa.y, vpa.z, ta->coords[0], ta->coords[1], va_color,
+														vpb.x, vpb.y, vpb.z, tb->coords[0], tb->coords[1], vb_color,
+														vpc.x, vpc.y, vpc.z, tc->coords[0], tc->coords[1], vc_color);
+		}
+
+		surface = MD3_SURFACE_GET_NEXT(surface);
+	}
+
+	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
 }
 
 void transfer_texture(uint32_t texture_start)
@@ -502,41 +573,45 @@ void main()
   // framebuffer.
   holly.FB_R_SOF1 = framebuffer_start;
 
-  // draw 500 frames of cube rotation
-  for (int i = 0; i < 500; i++) {
-    //////////////////////////////////////////////////////////////////////////////
-    // transfer cube to texture memory via the TA polygon converter FIFO
-    //////////////////////////////////////////////////////////////////////////////
+	// draw 500 frames of cube rotation
+	while (1)
+	{
+		for (int i = 0; i < 500; i++)
+		{
+			//////////////////////////////////////////////////////////////////////////////
+			// transfer cube to texture memory via the TA polygon converter FIFO
+			//////////////////////////////////////////////////////////////////////////////
 
-    // TA_LIST_INIT needs to be written (every frame) prior to the first FIFO
-    // write.
-    holly.TA_LIST_INIT = ta_list_init::list_init;
+			// TA_LIST_INIT needs to be written (every frame) prior to the first FIFO
+			// write.
+			holly.TA_LIST_INIT = ta_list_init::list_init;
 
-    // dummy TA_LIST_INIT read; DCDBSysArc990907E.pdf in multiple places says this
-    // step is required.
-    (void)holly.TA_LIST_INIT;
+			// dummy TA_LIST_INIT read; DCDBSysArc990907E.pdf in multiple places says this
+			// step is required.
+			(void)holly.TA_LIST_INIT;
 
-    transfer_ta_cube(texture_start);
+			transfer_dreamcasko(texture_start);
 
-    //////////////////////////////////////////////////////////////////////////////
-    // wait for vertical synchronization (and the TA)
-    //////////////////////////////////////////////////////////////////////////////
+			//////////////////////////////////////////////////////////////////////////////
+			// wait for vertical synchronization (and the TA)
+			//////////////////////////////////////////////////////////////////////////////
 
-    while (!(spg_status::vsync(holly.SPG_STATUS)));
-    while (spg_status::vsync(holly.SPG_STATUS));
+			while (!(spg_status::vsync(holly.SPG_STATUS)));
+			while (spg_status::vsync(holly.SPG_STATUS));
 
-    //////////////////////////////////////////////////////////////////////////////
-    // start the actual rasterization
-    //////////////////////////////////////////////////////////////////////////////
+			//////////////////////////////////////////////////////////////////////////////
+			// start the actual rasterization
+			//////////////////////////////////////////////////////////////////////////////
 
-    // start the actual render--the rendering process begins by interpreting the
-    // region array
-    holly.STARTRENDER = 1;
+			// start the actual render--the rendering process begins by interpreting the
+			// region array
+			holly.STARTRENDER = 1;
 
-    // increment theta for the cube rotation animation
-    // (used by the `vertex_rotate` function)
-    theta += 0.01f;
-  }
+			// increment theta for the cube rotation animation
+			// (used by the `vertex_rotate` function)
+			theta += 0.01f;
+		}
+	}
 
-  // return from main; this will effectively jump back to the serial loader
+	// return from main; this will effectively jump back to the serial loader
 }
