@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#pragma pack(push, 1)
+
 #define MD3_MAGIC (0x51806873)
 #define MD3_VERSION (15)
 
@@ -15,10 +17,10 @@ typedef struct md3 {
 	uint32_t num_tags; ///< number of tags
 	uint32_t num_surfaces; ///< number of surfaces
 	uint32_t num_skins; ///< number of skins
-	uint32_t ofs_frames;
-	uint32_t ofs_tags;
-	uint32_t ofs_surfaces;
-	uint32_t ofs_end; ///< size of md3 object
+	int32_t ofs_frames;
+	int32_t ofs_tags;
+	int32_t ofs_surfaces;
+	int32_t ofs_end; ///< size of md3 object
 } md3_t;
 
 #define MD3_GET_FRAMES(md3) ((md3_frame_t *)(((uint8_t *)(md3)) + (md3)->ofs_frames))
@@ -47,17 +49,18 @@ typedef struct md3_surface {
 	uint32_t num_shaders;
 	uint32_t num_vertices;
 	uint32_t num_triangles;
-	uint32_t ofs_triangles;
-	uint32_t ofs_shaders;
-	uint32_t ofs_texcoords;
-	uint32_t ofs_vertices;
-	uint32_t ofs_end;
+	int32_t ofs_triangles;
+	int32_t ofs_shaders;
+	int32_t ofs_texcoords;
+	int32_t ofs_vertices;
+	int32_t ofs_end;
 } md3_surface_t;
 
 #define MD3_SURFACE_GET_TRIANGLES(surface) ((md3_triangle_t *)(((uint8_t *)(surface)) + (surface)->ofs_triangles))
 #define MD3_SURFACE_GET_SHADERS(surface) ((md3_shader_t *)(((uint8_t *)(surface)) + (surface)->ofs_shaders))
 #define MD3_SURFACE_GET_TEXCOORDS(surface) ((md3_texcoord_t *)(((uint8_t *)(surface)) + (surface)->ofs_texcoords))
 #define MD3_SURFACE_GET_VERTICES(surface) ((md3_vertex_t *)(((uint8_t *)(surface)) + (surface)->ofs_vertices))
+#define MD3_SURFACE_GET_NEXT(surface) ((md3_surface_t *)(((uint8_t *)(surface)) + (surface)->ofs_end))
 
 typedef struct md3_triangle {
 	uint32_t indices[3];
@@ -79,5 +82,7 @@ typedef struct md3_vertex {
 	int16_t position[3];
 	int16_t normal;
 } md3_vertex_t;
+
+#pragma pack(pop)
 
 #endif // _MD3_H_
