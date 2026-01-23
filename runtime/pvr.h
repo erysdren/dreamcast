@@ -1,5 +1,8 @@
 #ifndef _PVR_H_
 #define _PVR_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 
@@ -27,7 +30,7 @@ typedef struct gbix {
 
 typedef struct pvr {
 	uint32_t magic;
-	uint32_t len_file;
+	uint32_t len;
 	uint32_t type;
 	uint16_t width;
 	uint16_t height;
@@ -38,4 +41,21 @@ typedef struct pvr {
 #define PVR_GET_PIXEL_TYPE(pvr) ((pvr)->type & 0xFF)
 #define PVR_GET_IMAGE_TYPE(pvr) (((pvr)->type & 0xFF00) >> 8)
 
+#define PVR_GET_PIXEL_DATA(pvr) (((uint8_t *)(pvr)) + sizeof(pvr_t))
+#define PVR_GET_PIXEL_DATA_SIZE(pvr) ((pvr)->len - sizeof(pvr_t) + (sizeof(uint32_t) * 2))
+
+enum {
+	PVR_ERROR_NONE, ///< no error
+	PVR_ERROR_INVALID, ///< ptr is NULL
+	PVR_ERROR_MAGIC, ///< magic identifer doesn't match
+	PVR_ERROR_WIDTH, ///< width is not a power or two or greater than 1024
+	PVR_ERROR_HEIGHT, ///< height is not a power or two or greater than 1024
+	PVR_ERROR_TYPE ///< type is invalid
+};
+
+const pvr_t *pvr_validate(const void *ptr, int *error_code);
+
+#ifdef __cplusplus
+}
+#endif
 #endif // _PVR_H_
