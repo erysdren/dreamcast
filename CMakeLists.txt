@@ -40,6 +40,7 @@ target_sources(runtime INTERFACE
 	${PROJECT_SOURCE_DIR}/runtime/printf/unparse.c
 	${PROJECT_SOURCE_DIR}/runtime/printf/printf.c
 	${PROJECT_SOURCE_DIR}/runtime/printf/parse.c
+	${PROJECT_SOURCE_DIR}/runtime/pvr.c
 )
 target_compile_options(runtime INTERFACE
 	$<$<COMPILE_LANGUAGE:C,CXX>:-mfsrra>
