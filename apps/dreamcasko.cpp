@@ -18,8 +18,24 @@
 #define ROMFS_SOURCE_FILENAME "dreamcasko.pk3.h"
 #include "romfs.c"
 
-#define TEXTURE_PATH "textures/models/dreamcasko/body.pvr"
 #define MODEL_PATH "models/dreamcasko.md3"
+
+static struct {
+	const char *name;
+	uint32_t ofs;
+} textures[3] = {
+	{ "textures/models/dreamcasko/body.pvr", 0 },
+	{ "textures/models/dreamcasko/clothing.pvr", 0 },
+	{ "textures/models/dreamcasko/face.pvr", 0 }
+};
+
+static uint32_t get_texture_address(const char *name)
+{
+	for (int i = 0; i < 3; i++)
+		if (__builtin_strcmp(name, textures[i].name) == 0)
+			return textures[i].ofs;
+	return 0;
+}
 
 #include "pvr.h"
 #include "md3.h"
@@ -76,7 +92,7 @@ static inline uint32_t transfer_ta_global_end_of_list(uint32_t store_queue_ix)
 	return store_queue_ix;
 }
 
-static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint32_t texture_address)
+static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, const char *texture_name, uint32_t texture_address)
 {
 	using namespace holly::core::parameter;
 	using namespace holly::ta;
@@ -107,7 +123,7 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint3
 									| tsp_instruction_word::filter_mode::point_sampled
 									| tsp_instruction_word::texture_shading_instruction::decal;
 
-	const pvr_t *pvr = (const pvr_t *)ROMFS_GetFileFromPath(TEXTURE_PATH, NULL);
+	const pvr_t *pvr = (const pvr_t *)ROMFS_GetFileFromPath(texture_name, NULL);
 
 	auto pixel_type = PVR_GET_PIXEL_TYPE(pvr);
 	auto image_type = PVR_GET_IMAGE_TYPE(pvr);
@@ -225,59 +241,6 @@ struct vec2 {
   float v;
 };
 
-static const vec3 cube_vertex_position[] = {
-  {  1.0f,  1.0f, -1.0f },
-  {  1.0f, -1.0f, -1.0f },
-  {  1.0f,  1.0f,  1.0f },
-  {  1.0f, -1.0f,  1.0f },
-  { -1.0f,  1.0f, -1.0f },
-  { -1.0f, -1.0f, -1.0f },
-  { -1.0f,  1.0f,  1.0f },
-  { -1.0f, -1.0f,  1.0f },
-};
-
-static const vec2 cube_vertex_texture[] = {
-  { 1.0f, 0.0f },
-  { 0.0f, 1.0f },
-  { 0.0f, 0.0f },
-  { 1.0f, 1.0f },
-};
-
-struct position_texture {
-  int position;
-  int texture;
-};
-
-struct face {
-  position_texture a;
-  position_texture b;
-  position_texture c;
-};
-
-/*
-  It is also possible to submit each cube face as a 4-vertex triangle strip, or
-  submit the entire cube as a single triangle strip.
-
-  Separate 3-vertex triangles are chosen to make this example more
-  straightforward, but this is not the best approach if high performance is
-  desired.
- */
-static const face cube_faces[] = {
-  {{4, 0}, {2, 1}, {0, 2}},
-  {{2, 0}, {7, 1}, {3, 2}},
-  {{6, 0}, {5, 1}, {7, 2}},
-  {{1, 0}, {7, 1}, {5, 2}},
-  {{0, 0}, {3, 1}, {1, 2}},
-  {{4, 0}, {1, 1}, {5, 2}},
-  {{4, 0}, {6, 3}, {2, 1}},
-  {{2, 0}, {6, 3}, {7, 1}},
-  {{6, 0}, {4, 3}, {5, 1}},
-  {{1, 0}, {3, 3}, {7, 1}},
-  {{0, 0}, {2, 3}, {3, 1}},
-  {{4, 0}, {0, 3}, {1, 1}},
-};
-static const int cube_faces_length = (sizeof (cube_faces)) / (sizeof (cube_faces[0]));
-
 #define cos(n) __builtin_cosf(n)
 #define sin(n) __builtin_sinf(n)
 
@@ -318,66 +281,12 @@ static inline vec3 vertex_screen_space(vec3 v)
   };
 }
 
-void transfer_ta_cube(uint32_t texture_address)
-{
-  {
-    using namespace sh7091;
-    using sh7091::sh7091;
-
-    // set the store queue destination address to the TA Polygon Converter FIFO
-    sh7091.CCN.QACR0 = sh7091::ccn::qacr0::address(ta_fifo_polygon_converter);
-    sh7091.CCN.QACR1 = sh7091::ccn::qacr1::address(ta_fifo_polygon_converter);
-  }
-
-  uint32_t store_queue_ix = 0;
-
-  store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_address);
-
-  for (int face_ix = 0; face_ix < cube_faces_length; face_ix++) {
-    int ipa = cube_faces[face_ix].a.position;
-    int ipb = cube_faces[face_ix].b.position;
-    int ipc = cube_faces[face_ix].c.position;
-
-    vec3 vpa = vertex_screen_space(
-                 vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipa])));
-
-    vec3 vpb = vertex_screen_space(
-                 vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipb])));
-
-    vec3 vpc = vertex_screen_space(
-                 vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipc])));
-
-    int ita = cube_faces[face_ix].a.texture;
-    int itb = cube_faces[face_ix].b.texture;
-    int itc = cube_faces[face_ix].c.texture;
-
-    vec2 vta = cube_vertex_texture[ita];
-    vec2 vtb = cube_vertex_texture[itb];
-    vec2 vtc = cube_vertex_texture[itc];
-
-    // vertex color is irrelevant in "decal" mode
-    uint32_t va_color = 0;
-    uint32_t vb_color = 0;
-    uint32_t vc_color = 0;
-
-    store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
-                                                 vpa.x, vpa.y, vpa.z, vta.u, vta.v, va_color,
-                                                 vpb.x, vpb.y, vpb.z, vtb.u, vtb.v, vb_color,
-                                                 vpc.x, vpc.y, vpc.z, vtc.u, vtc.v, vc_color);
-  }
-
-  store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
-}
-
 static inline vec3 decompress_vertex(md3_vertex_t *vertex)
 {
 	return (vec3){MD3_UNCOMPRESS_POSITION(vertex->position[0]), MD3_UNCOMPRESS_POSITION(vertex->position[1]), MD3_UNCOMPRESS_POSITION(vertex->position[2])};
 }
 
-void transfer_dreamcasko(uint32_t texture_address)
+void transfer_dreamcasko()
 {
 	md3_t *md3 = (md3_t *)ROMFS_GetFileFromPath(MODEL_PATH, NULL);
 	md3_surface_t *surfaces = MD3_GET_SURFACES(md3);
@@ -393,14 +302,39 @@ void transfer_dreamcasko(uint32_t texture_address)
 
 	uint32_t store_queue_ix = 0;
 
-	store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_address);
-
 	md3_surface_t *surface = surfaces;
+
 	for (int i = 0; i < md3->num_surfaces; i++)
 	{
+		char texture_name[256];
 		md3_triangle_t *triangles = MD3_SURFACE_GET_TRIANGLES(surface);
+		md3_shader_t *shaders = MD3_SURFACE_GET_SHADERS(surface);
 		md3_texcoord_t *texcoords = MD3_SURFACE_GET_TEXCOORDS(surface);
 		md3_vertex_t *vertices = MD3_SURFACE_GET_VERTICES(surface);
+
+		const char *src_ptr;
+		char *dst_ptr;
+		const char prefix[] = "textures/";
+		const char suffix[] = ".pvr";
+
+		// ugh
+		src_ptr = prefix;
+		dst_ptr = texture_name;
+		while (*src_ptr) *dst_ptr++ = *src_ptr++;
+
+		// ugh
+		src_ptr = shaders->name;
+		while (*src_ptr) *dst_ptr++ = *src_ptr++;
+
+		// ugh
+		src_ptr = suffix;
+		while (*src_ptr) *dst_ptr++ = *src_ptr++;
+
+		*dst_ptr = '\0';
+
+		uint32_t texture_address = get_texture_address(texture_name);
+
+		store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_name, texture_address);
 
 		for (int j = 0; j < surface->num_triangles; j++)
 		{
@@ -441,7 +375,7 @@ void transfer_dreamcasko(uint32_t texture_address)
 	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
 }
 
-void transfer_texture(uint32_t texture_start)
+uint32_t transfer_texture(const char *name, uint32_t texture_address)
 {
 	// use 4-byte transfers to texture memory, for slightly increased transfer
 	// speed
@@ -450,9 +384,11 @@ void transfer_texture(uint32_t texture_start)
 	// SH4 DMA.
 
 	size_t size = 0;
-	const uint8_t *texture = (const uint8_t *)ROMFS_GetFileFromPath(TEXTURE_PATH, &size);
+	const uint8_t *texture = (const uint8_t *)ROMFS_GetFileFromPath(name, &size);
 
-	sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_start], texture + sizeof(pvr_t), size - sizeof(pvr_t));
+	sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_address], texture + sizeof(pvr_t), size - sizeof(pvr_t));
+
+	return texture_address + size - sizeof(pvr_t);
 }
 
 void main()
@@ -489,10 +425,15 @@ void main()
   transfer_background_polygon(isp_tsp_parameter_start);
 
   //////////////////////////////////////////////////////////////////////////////
-  // transfer the texture image to texture ram
+  // transfer the texture images to texture ram
   //////////////////////////////////////////////////////////////////////////////
 
-  transfer_texture(texture_start);
+	uint32_t texture_address = texture_start;
+	for (int i = 0; i < 3; i++)
+	{
+		textures[i].ofs = texture_address;
+		texture_address = transfer_texture(textures[i].name, texture_address);
+	}
 
   //////////////////////////////////////////////////////////////////////////////
   // configure the TA
@@ -590,7 +531,7 @@ void main()
 			// step is required.
 			(void)holly.TA_LIST_INIT;
 
-			transfer_dreamcasko(texture_start);
+			transfer_dreamcasko();
 
 			//////////////////////////////////////////////////////////////////////////////
 			// wait for vertical synchronization (and the TA)
