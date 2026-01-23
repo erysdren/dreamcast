@@ -123,7 +123,7 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, const
 									| tsp_instruction_word::filter_mode::point_sampled
 									| tsp_instruction_word::texture_shading_instruction::decal;
 
-	const pvr_t *pvr = (const pvr_t *)ROMFS_GetFileFromPath(texture_name, NULL);
+	const pvr_t *pvr = pvr_validate(ROMFS_GetFileFromPath(texture_name, NULL), NULL);
 
 	auto pixel_type = PVR_GET_PIXEL_TYPE(pvr);
 	auto image_type = PVR_GET_IMAGE_TYPE(pvr);
@@ -383,12 +383,11 @@ uint32_t transfer_texture(const char *name, uint32_t texture_address)
 	// It would be even faster to use the SH4 store queue for this operation, or
 	// SH4 DMA.
 
-	size_t size = 0;
-	const uint8_t *texture = (const uint8_t *)ROMFS_GetFileFromPath(name, &size);
+	const pvr_t *pvr = pvr_validate(ROMFS_GetFileFromPath(name, NULL), NULL);
 
-	sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_address], texture + sizeof(pvr_t), size - sizeof(pvr_t));
+	sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_address], PVR_GET_PIXEL_DATA(pvr), PVR_GET_PIXEL_DATA_SIZE(pvr));
 
-	return texture_address + size - sizeof(pvr_t);
+	return texture_address + PVR_GET_PIXEL_DATA_SIZE(pvr);
 }
 
 void main()
