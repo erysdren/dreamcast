@@ -169,3 +169,10 @@ bool wildcmp(const char *pattern, const char *line)
 		return false;
 	}
 }
+
+[[noreturn]] void exit(int code)
+{
+	typedef void (*exit_func)(int) __attribute__((__noreturn__));
+	exit_func do_exit = (exit_func)(*((uintptr_t *)(0x80000000 | 0x0C0000E0)));
+	do_exit(1);
+}

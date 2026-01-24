@@ -58,6 +58,8 @@ char tolower(char c);
 
 bool wildcmp(const char *wild, const char *string);
 
+[[noreturn]] void exit(int code);
+
 #ifdef __cplusplus
 }
 #endif
