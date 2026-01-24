@@ -10,11 +10,12 @@ static struct {
 	const uint8_t *ptr;
 	const size_t size;
 } zip_dir[] = {
-	{ "models/dreamcasko.md3", zip + 88, 42332 },
-	{ "textures/models/dreamcasko/body.pvr", zip + 42627, 8208 },
-	{ "textures/models/dreamcasko/clothing.pvr", zip + 50904, 8208 },
-	{ "textures/models/dreamcasko/face.pvr", zip + 59177, 8208 },
+	{ "models/dreamcasko.iqm", zip + 88, 109324 },
+	{ "models/dreamcasko.md3", zip + 109463, 42332 },
+	{ "textures/models/dreamcasko/body.pvr", zip + 152002, 8208 },
+	{ "textures/models/dreamcasko/clothing.pvr", zip + 160279, 8208 },
+	{ "textures/models/dreamcasko/face.pvr", zip + 168552, 8208 },
 	{ NULL, NULL, 0 }
 };
 
-static const size_t zip_dir_num_files = 4;
+static const size_t zip_dir_num_files = 5;
