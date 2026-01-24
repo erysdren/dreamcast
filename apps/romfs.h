@@ -16,4 +16,7 @@ const void *ROMFS_GetFileFromIndex(size_t index, size_t *size);
 // returns NULL on error
 const void *ROMFS_GetFileFromPath(const char *path, size_t *size);
 
+// returns number of paths matched (up to max_matched)
+size_t ROMFS_GlobFiles(const char *wild, const char **matched, size_t max_matched);
+
 #endif // _ROMFS_H_
