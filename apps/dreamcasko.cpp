@@ -18,8 +18,6 @@
 #define ROMFS_SOURCE_FILENAME "dreamcasko.pk3.h"
 #include "romfs.c"
 
-#define MODEL_PATH "models/dreamcasko.md3"
-
 static struct {
 	const char *name;
 	uint32_t ofs;
@@ -92,7 +90,7 @@ static inline uint32_t transfer_ta_global_end_of_list(uint32_t store_queue_ix)
 	return store_queue_ix;
 }
 
-static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, const char *texture_name, uint32_t texture_address)
+static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, const char *texture_name)
 {
 	using namespace holly::core::parameter;
 	using namespace holly::ta;
@@ -130,6 +128,8 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, const
 
 	polygon->tsp_instruction_word |= tsp_instruction_word::texture_u_size::from_int(pvr->width);
 	polygon->tsp_instruction_word |= tsp_instruction_word::texture_v_size::from_int(pvr->height);
+
+	uint32_t texture_address = get_texture_address(texture_name);
 
 	polygon->texture_control_word = texture_control_word::texture_address(texture_address / 8);
 
@@ -286,9 +286,9 @@ static inline vec3 decompress_vertex(md3_vertex_t *vertex)
 	return (vec3){MD3_UNCOMPRESS_POSITION(vertex->position[0]), MD3_UNCOMPRESS_POSITION(vertex->position[1]), MD3_UNCOMPRESS_POSITION(vertex->position[2])};
 }
 
-void transfer_dreamcasko()
+void transfer_md3(const char *model_path)
 {
-	md3_t *md3 = (md3_t *)ROMFS_GetFileFromPath(MODEL_PATH, NULL);
+	md3_t *md3 = (md3_t *)ROMFS_GetFileFromPath(model_path, NULL);
 	md3_surface_t *surfaces = MD3_GET_SURFACES(md3);
 
 	{
@@ -332,9 +332,7 @@ void transfer_dreamcasko()
 
 		*dst_ptr = '\0';
 
-		uint32_t texture_address = get_texture_address(texture_name);
-
-		store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_name, texture_address);
+		store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_name);
 
 		for (int j = 0; j < surface->num_triangles; j++)
 		{
@@ -530,7 +528,7 @@ void main()
 			// step is required.
 			(void)holly.TA_LIST_INIT;
 
-			transfer_dreamcasko();
+			transfer_md3("models/dreamcasko.md3");
 
 			//////////////////////////////////////////////////////////////////////////////
 			// wait for vertical synchronization (and the TA)
