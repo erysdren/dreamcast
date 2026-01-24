@@ -1,5 +1,8 @@
 #ifndef _MD3_H_
 #define _MD3_H_
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <stdint.h>
 
@@ -85,4 +88,7 @@ typedef struct md3_vertex {
 
 #pragma pack(pop)
 
+#ifdef __cplusplus
+}
+#endif
 #endif // _MD3_H_
