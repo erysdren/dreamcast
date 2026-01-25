@@ -1,3 +1,4 @@
+
 #include "memorymap.h"
 
 #include "holly/core/object_list_bits.hpp"
@@ -18,19 +19,18 @@
 #define ROMFS_SOURCE_FILENAME "dreamcasko.pk3.h"
 #include "romfs.c"
 
+#define MAX_TEXTURES 64
+
 static struct {
 	const char *name;
 	uint32_t ofs;
-} textures[3] = {
-	{ "textures/models/dreamcasko/body.pvr", 0 },
-	{ "textures/models/dreamcasko/clothing.pvr", 0 },
-	{ "textures/models/dreamcasko/face.pvr", 0 }
-};
+} textures[MAX_TEXTURES];
+static size_t num_textures = 0;
 
 static uint32_t get_texture_address(const char *name)
 {
-	for (int i = 0; i < 3; i++)
-		if (__builtin_strcmp(name, textures[i].name) == 0)
+	for (int i = 0; i < num_textures; i++)
+		if (strcmp(name, textures[i].name) == 0)
 			return textures[i].ofs;
 	return 0;
 }
@@ -226,10 +226,6 @@ static inline uint32_t transfer_ta_vertex_triangle(uint32_t store_queue_ix,
   return store_queue_ix;
 }
 
-/*
-  These vertex and face definitions are a trivial transformation of the default
-  Blender cube, as exported by the .obj exporter (with triangulation enabled).
- */
 struct vec3 {
   float x;
   float y;
@@ -240,9 +236,6 @@ struct vec2 {
   float u;
   float v;
 };
-
-#define cos(n) __builtin_cosf(n)
-#define sin(n) __builtin_sinf(n)
 
 static float theta = 0;
 
@@ -312,25 +305,10 @@ void transfer_md3(const char *model_path)
 		md3_texcoord_t *texcoords = MD3_SURFACE_GET_TEXCOORDS(surface);
 		md3_vertex_t *vertices = MD3_SURFACE_GET_VERTICES(surface);
 
-		const char *src_ptr;
-		char *dst_ptr;
-		const char prefix[] = "textures/";
-		const char suffix[] = ".pvr";
-
-		// ugh
-		src_ptr = prefix;
-		dst_ptr = texture_name;
-		while (*src_ptr) *dst_ptr++ = *src_ptr++;
-
-		// ugh
-		src_ptr = shaders->name;
-		while (*src_ptr) *dst_ptr++ = *src_ptr++;
-
-		// ugh
-		src_ptr = suffix;
-		while (*src_ptr) *dst_ptr++ = *src_ptr++;
-
-		*dst_ptr = '\0';
+		memset(texture_name, 0, sizeof(texture_name));
+		strlcat(texture_name, "textures/", sizeof(texture_name));
+		strlcat(texture_name, shaders->name, sizeof(texture_name));
+		strlcat(texture_name, ".pvr", sizeof(texture_name));
 
 		store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_name);
 
@@ -388,6 +366,21 @@ uint32_t transfer_texture(const char *name, uint32_t texture_address)
 	return texture_address + PVR_GET_PIXEL_DATA_SIZE(pvr);
 }
 
+void transfer_textures(uint32_t texture_start)
+{
+	const char *matched[MAX_TEXTURES];
+
+	num_textures = ROMFS_GlobFiles("*.pvr", matched, MAX_TEXTURES);
+
+	uint32_t texture_address = texture_start;
+	for (int i = 0; i < num_textures; i++)
+	{
+		textures[i].name = matched[i];
+		textures[i].ofs = texture_address;
+		texture_address = transfer_texture(textures[i].name, texture_address);
+	}
+}
+
 void main()
 {
   /*
@@ -425,12 +418,7 @@ void main()
   // transfer the texture images to texture ram
   //////////////////////////////////////////////////////////////////////////////
 
-	uint32_t texture_address = texture_start;
-	for (int i = 0; i < 3; i++)
-	{
-		textures[i].ofs = texture_address;
-		texture_address = transfer_texture(textures[i].name, texture_address);
-	}
+	transfer_textures(texture_start);
 
   //////////////////////////////////////////////////////////////////////////////
   // configure the TA
