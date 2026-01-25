@@ -2,82 +2,37 @@
 #include "utils.h"
 #include "ibsp.h"
 
-/* ibsp data pointers */
-
-size_t num_ibsp_entities;
-char *ibsp_entities;
-
-size_t num_ibsp_textures;
-ibsp_texture_t *ibsp_textures;
-
-size_t num_ibsp_planes;
-ibsp_plane_t *ibsp_planes;
-
-size_t num_ibsp_nodes;
-ibsp_node_t *ibsp_nodes;
-
-size_t num_ibsp_leafs;
-ibsp_leaf_t *ibsp_leafs;
-
-size_t num_ibsp_leaffaces;
-int32_t *ibsp_leaffaces;
-
-size_t num_ibsp_leafbrushes;
-int32_t *ibsp_leafbrushes;
-
-size_t num_ibsp_models;
-ibsp_model_t *ibsp_models;
-
-size_t num_ibsp_brushes;
-ibsp_brush_t *ibsp_brushes;
-
-size_t num_ibsp_brushsides;
-ibsp_brushside_t *ibsp_brushsides;
-
-size_t num_ibsp_vertices;
-ibsp_vertex_t *ibsp_vertices;
-
-size_t num_ibsp_meshverts;
-int32_t *ibsp_meshverts;
-
-size_t num_ibsp_faces;
-ibsp_face_t *ibsp_faces;
-
-size_t num_ibsp_lightmaps;
-ibsp_lightmap_t *ibsp_lightmaps;
-
-size_t num_ibsp_visdata;
-ibsp_visdata_t *ibsp_visdata;
-
-bool ibsp_load(const void *ptr)
+bool ibsp_load(const void *ptr, ibsp_t *ibsp)
 {
 	if (!ptr)
 		return false;
 
-	ibsp_header_t *header = (ibsp_header_t *)ptr;
+	ibsp->header = (ibsp_header_t *)ptr;
 
-	if (header->magic != IBSP_MAGIC || header->version != IBSP_VERSION)
+	if (ibsp->header->magic != IBSP_MAGIC || ibsp->header->version != IBSP_VERSION)
 		return false;
 
 #define LOADLUMP(d, l) \
-	d = (typeof(d))((uint8_t *)ptr + header->lumps[l].offset); \
-	num_##d = header->lumps[l].length / sizeof(*d)
+	ibsp->d = (typeof(ibsp->d))((uint8_t *)ptr + ibsp->header->lumps[l].offset); \
+	ibsp->num_##d = ibsp->header->lumps[l].length / sizeof(*(ibsp->d))
 
-	LOADLUMP(ibsp_entities, IBSP_LUMP_ENTITES);
-	LOADLUMP(ibsp_textures, IBSP_LUMP_TEXTURES);
-	LOADLUMP(ibsp_planes, IBSP_LUMP_PLANES);
-	LOADLUMP(ibsp_nodes, IBSP_LUMP_NODES);
-	LOADLUMP(ibsp_leafs, IBSP_LUMP_LEAFS);
-	LOADLUMP(ibsp_leaffaces, IBSP_LUMP_LEAFFACES);
-	LOADLUMP(ibsp_leafbrushes, IBSP_LUMP_LEAFBRUSHES);
-	LOADLUMP(ibsp_models, IBSP_LUMP_MODELS);
-	LOADLUMP(ibsp_brushes, IBSP_LUMP_BRUSHES);
-	LOADLUMP(ibsp_brushsides, IBSP_LUMP_BRUSHSIDES);
-	LOADLUMP(ibsp_vertices, IBSP_LUMP_VERTICES);
-	LOADLUMP(ibsp_meshverts, IBSP_LUMP_MESHVERTS);
-	LOADLUMP(ibsp_faces, IBSP_LUMP_FACES);
-	LOADLUMP(ibsp_lightmaps, IBSP_LUMP_LIGHTMAPS);
-	LOADLUMP(ibsp_visdata, IBSP_LUMP_TEXTURES);
+	LOADLUMP(entities, IBSP_LUMP_ENTITES);
+	LOADLUMP(textures, IBSP_LUMP_TEXTURES);
+	LOADLUMP(planes, IBSP_LUMP_PLANES);
+	LOADLUMP(nodes, IBSP_LUMP_NODES);
+	LOADLUMP(leafs, IBSP_LUMP_LEAFS);
+	LOADLUMP(leaffaces, IBSP_LUMP_LEAFFACES);
+	LOADLUMP(leafbrushes, IBSP_LUMP_LEAFBRUSHES);
+	LOADLUMP(models, IBSP_LUMP_MODELS);
+	LOADLUMP(brushes, IBSP_LUMP_BRUSHES);
+	LOADLUMP(brushsides, IBSP_LUMP_BRUSHSIDES);
+	LOADLUMP(vertices, IBSP_LUMP_VERTICES);
+	LOADLUMP(meshverts, IBSP_LUMP_MESHVERTS);
+	LOADLUMP(effects, IBSP_LUMP_EFFECTS);
+	LOADLUMP(faces, IBSP_LUMP_FACES);
+	LOADLUMP(lightmaps, IBSP_LUMP_LIGHTMAPS);
+	LOADLUMP(lightvols, IBSP_LUMP_LIGHTVOLS);
+	LOADLUMP(visdata, IBSP_LUMP_VISDATA);
 
 #undef LOADLUMP
 

@@ -32,21 +32,6 @@ enum {
 	IBSP_NUM_LUMPS = 17
 };
 
-#define IBSP_MAX_ENTITIES (16384)
-#define IBSP_MAX_TEXTURES (32)
-#define IBSP_MAX_PLANES (8192)
-#define IBSP_MAX_NODES (8192)
-#define IBSP_MAX_LEAFS (8192)
-#define IBSP_MAX_LEAFFACES (8192)
-#define IBSP_MAX_LEAFBRUSHES (8192)
-#define IBSP_MAX_MODELS (1024)
-#define IBSP_MAX_BRUSHES (16384)
-#define IBSP_MAX_BRUSHSIDES (8192)
-#define IBSP_MAX_VERTICES (32768)
-#define IBSP_MAX_MESHVERTS (32768)
-#define IBSP_MAX_FACES (8192)
-#define IBSP_MAX_VISDATA (32768)
-
 typedef struct ibsp_plane {
 	float normal[3];
 	float dist;
@@ -90,8 +75,14 @@ typedef struct ibsp_brushside {
 typedef struct ibsp_visdata {
 	int32_t num_vecs;
 	int32_t len_vec;
-	uint8_t vecs[IBSP_MAX_VISDATA];
+	uint8_t vecs[];
 } ibsp_visdata_t;
+
+typedef struct ibsp_effect {
+	char name[64];
+	int32_t brush;
+	int32_t type;
+} ibsp_effect_t;
 
 typedef struct ibsp_face {
 	int32_t texture;
@@ -130,6 +121,12 @@ typedef struct ibsp_lightmap {
 	uint8_t lightmap[128][128][3];
 } ibsp_lightmap_t;
 
+typedef struct ibsp_lightvol {
+	uint8_t ambient[3];
+	uint8_t directional[3];
+	uint8_t dir[2];
+} ibsp_lightvol_t;
+
 typedef struct ibsp_lump {
 	uint32_t offset;
 	uint32_t length;
@@ -141,48 +138,62 @@ typedef struct ibsp_header {
 	ibsp_lump_t lumps[IBSP_NUM_LUMPS];
 } ibsp_header_t;
 
-extern size_t num_ibsp_textures;
-extern ibsp_texture_t *ibsp_textures;
+typedef struct ibsp {
+	ibsp_header_t *header;
 
-extern size_t num_ibsp_planes;
-extern ibsp_plane_t *ibsp_planes;
+	size_t num_entities;
+	char *entities;
 
-extern size_t num_ibsp_nodes;
-extern ibsp_node_t *ibsp_nodes;
+	size_t num_textures;
+	ibsp_texture_t *textures;
 
-extern size_t num_ibsp_leafs;
-extern ibsp_leaf_t *ibsp_leafs;
+	size_t num_planes;
+	ibsp_plane_t *planes;
 
-extern size_t num_ibsp_leaffaces;
-extern int32_t *ibsp_leaffaces;
+	size_t num_nodes;
+	ibsp_node_t *nodes;
 
-extern size_t num_ibsp_leafbrushes;
-extern int32_t *ibsp_leafbrushes;
+	size_t num_leafs;
+	ibsp_leaf_t *leafs;
 
-extern size_t num_ibsp_models;
-extern ibsp_model_t *ibsp_models;
+	size_t num_leaffaces;
+	int32_t *leaffaces;
 
-extern size_t num_ibsp_brushes;
-extern ibsp_brush_t *ibsp_brushes;
+	size_t num_leafbrushes;
+	int32_t *leafbrushes;
 
-extern size_t num_ibsp_brushsides;
-extern ibsp_brushside_t *ibsp_brushsides;
+	size_t num_models;
+	ibsp_model_t *models;
 
-extern size_t num_ibsp_vertices;
-extern ibsp_vertex_t *ibsp_vertices;
+	size_t num_brushes;
+	ibsp_brush_t *brushes;
 
-extern size_t num_ibsp_meshverts;
-extern int32_t *ibsp_meshverts;
+	size_t num_brushsides;
+	ibsp_brushside_t *brushsides;
 
-extern size_t num_ibsp_faces;
-extern ibsp_face_t *ibsp_faces;
+	size_t num_vertices;
+	ibsp_vertex_t *vertices;
 
-extern size_t num_ibsp_lightmaps;
-extern ibsp_lightmap_t *ibsp_lightmaps;
+	size_t num_meshverts;
+	int32_t *meshverts;
 
-extern ibsp_visdata_t *ibsp_visdata;
+	size_t num_effects;
+	ibsp_effect_t *effects;
 
-bool ibsp_load(const void *ptr);
+	size_t num_faces;
+	ibsp_face_t *faces;
+
+	size_t num_lightmaps;
+	ibsp_lightmap_t *lightmaps;
+
+	size_t num_lightvols;
+	ibsp_lightvol_t *lightvols;
+
+	size_t num_visdata;
+	ibsp_visdata_t *visdata;
+} ibsp_t;
+
+bool ibsp_load(const void *ptr, ibsp_t *ibsp);
 
 #pragma pack(pop)
 
