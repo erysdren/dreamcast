@@ -1,4 +1,8 @@
 
+#include "utils.h"
+
+#include <cglm/cglm.h>
+
 #include "memorymap.h"
 
 #include "holly/core/object_list_bits.hpp"
@@ -226,60 +230,52 @@ static inline uint32_t transfer_ta_vertex_triangle(uint32_t store_queue_ix,
   return store_queue_ix;
 }
 
-struct vec3 {
-  float x;
-  float y;
-  float z;
-};
-
-struct vec2 {
-  float u;
-  float v;
-};
-
 static float theta = 0;
 
-static inline vec3 vertex_rotate(vec3 v)
+static inline void vertex_rotate(vec3 v)
 {
-  // to make the cube's appearance more interesting, rotate the vertex on two
-  // axes
+	// to make the cube's appearance more interesting, rotate the vertex on two
+	// axes
 
-  float x0 = v.x;
-  float y0 = v.y;
-  float z0 = v.z;
+	float x0 = v[0];
+	float y0 = v[1];
+	float z0 = v[2];
 
-  float x1 = x0 * cos(theta) - z0 * sin(theta);
-  float y1 = y0;
-  float z1 = x0 * sin(theta) + z0 * cos(theta);
+	float x1 = x0 * cos(theta) - z0 * sin(theta);
+	float y1 = y0;
+	float z1 = x0 * sin(theta) + z0 * cos(theta);
 
-  float x2 = x1;
-  float y2 = y1 * cos(theta) - z1 * sin(theta);
-  float z2 = y1 * sin(theta) + z1 * cos(theta);
+	float x2 = x1;
+	float y2 = y1 * cos(theta) - z1 * sin(theta);
+	float z2 = y1 * sin(theta) + z1 * cos(theta);
 
-  return (vec3){x2, y2, z2};
+	v[0] = x2;
+	v[1] = y2;
+	v[2] = z2;
 }
 
-static inline vec3 vertex_perspective_divide(vec3 v)
+static inline void vertex_perspective_divide(vec3 v)
 {
-  float w = 1.0f / (v.z + 64.0f);
-  return (vec3){v.x * w, v.y * w, w};
+	float w = 1.0f / (v[2] + 3.0f);
+	v[0] = v[0] * w;
+	v[1] = v[1] * w;
+	v[2] = w;
 }
 
-static inline vec3 vertex_screen_space(vec3 v)
+static inline void vertex_screen_space(vec3 v)
 {
-  return (vec3){
-    v.x * 240.f + 320.f,
-    v.y * 240.f + 240.f,
-    v.z,
-  };
+	v[0] = v[0] * 240.0f + 320.f;
+	v[1] = v[1] * 240.0f + 240.f;
 }
 
-static inline vec3 decompress_vertex(md3_vertex_t *vertex)
+static inline void decompress_vertex(md3_vertex_t *vertex, vec3 v)
 {
-	return (vec3){MD3_UNCOMPRESS_POSITION(vertex->position[0]), MD3_UNCOMPRESS_POSITION(vertex->position[1]), MD3_UNCOMPRESS_POSITION(vertex->position[2])};
+	v[0] = MD3_UNCOMPRESS_POSITION(vertex->position[0]);
+	v[1] = MD3_UNCOMPRESS_POSITION(vertex->position[1]);
+	v[2] = MD3_UNCOMPRESS_POSITION(vertex->position[2]);
 }
 
-void transfer_md3(const char *model_path)
+void transfer_md3(const char *model_path, mat4 mvp)
 {
 	md3_t *md3 = (md3_t *)ROMFS_GetFileFromPath(model_path, NULL);
 	md3_surface_t *surfaces = MD3_GET_SURFACES(md3);
@@ -322,17 +318,37 @@ void transfer_md3(const char *model_path)
 			md3_texcoord_t *tb = texcoords + triangle->indices[1];
 			md3_texcoord_t *tc = texcoords + triangle->indices[2];
 
-			vec3 vpa = vertex_screen_space(
-						vertex_perspective_divide(
-							vertex_rotate(decompress_vertex(va))));
+			vec3 vpa, vpb, vpc;
 
-			vec3 vpb = vertex_screen_space(
-						vertex_perspective_divide(
-							vertex_rotate(decompress_vertex(vb))));
+			// decompress MD3 vertices
+			decompress_vertex(va, vpa);
+			decompress_vertex(vb, vpb);
+			decompress_vertex(vc, vpc);
 
-			vec3 vpc = vertex_screen_space(
-						vertex_perspective_divide(
-							vertex_rotate(decompress_vertex(vc))));
+			// rotate around two different axes by theta
+			glm_vec3_rotate(vpa, theta, GLM_XUP);
+			glm_vec3_rotate(vpa, theta, GLM_YUP);
+
+			glm_vec3_rotate(vpb, theta, GLM_XUP);
+			glm_vec3_rotate(vpb, theta, GLM_YUP);
+
+			glm_vec3_rotate(vpc, theta, GLM_XUP);
+			glm_vec3_rotate(vpc, theta, GLM_YUP);
+
+			// multiply by mvp matrix
+			glm_mat4_mulv3(mvp, vpa, 1.0f, vpa);
+			glm_mat4_mulv3(mvp, vpb, 1.0f, vpb);
+			glm_mat4_mulv3(mvp, vpc, 1.0f, vpc);
+
+			// do perspective divide
+			vertex_perspective_divide(vpa);
+			vertex_perspective_divide(vpb);
+			vertex_perspective_divide(vpc);
+
+			// translate to screen space
+			vertex_screen_space(vpa);
+			vertex_screen_space(vpb);
+			vertex_screen_space(vpc);
 
 			// vertex color is irrelevant in "decal" mode
 			uint32_t va_color = 0;
@@ -340,9 +356,9 @@ void transfer_md3(const char *model_path)
 			uint32_t vc_color = 0;
 
 			store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
-														vpa.x, vpa.y, vpa.z, ta->coords[0], ta->coords[1], va_color,
-														vpb.x, vpb.y, vpb.z, tb->coords[0], tb->coords[1], vb_color,
-														vpc.x, vpc.y, vpc.z, tc->coords[0], tc->coords[1], vc_color);
+														vpa[0], vpa[1], vpa[2], ta->coords[0], ta->coords[1], va_color,
+														vpb[0], vpb[1], vpb[2], tb->coords[0], tb->coords[1], vb_color,
+														vpc[0], vpc[1], vpc[2], tc->coords[0], tc->coords[1], vc_color);
 		}
 
 		surface = MD3_SURFACE_GET_NEXT(surface);
@@ -499,6 +515,12 @@ void main()
   // framebuffer.
   holly.FB_R_SOF1 = framebuffer_start;
 
+	mat4 model = GLM_MAT4_IDENTITY_INIT, proj, view, viewproj, mvp;
+	glm_lookat((vec3){32, 32, 32}, (vec3){0, 0, 0}, GLM_YUP, view);
+	glm_perspective(70, 640.0f/480.0f, 0.1f, 1024.0f, proj);
+	glm_mat4_mul(proj, view, viewproj);
+	glm_mat4_mul(viewproj, model, mvp);
+
 	// draw 500 frames of cube rotation
 	while (1)
 	{
@@ -516,7 +538,7 @@ void main()
 			// step is required.
 			(void)holly.TA_LIST_INIT;
 
-			transfer_md3("models/dreamcasko.md3");
+			transfer_md3("models/dreamcasko.md3", mvp);
 
 			//////////////////////////////////////////////////////////////////////////////
 			// wait for vertical synchronization (and the TA)
