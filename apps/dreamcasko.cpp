@@ -41,6 +41,7 @@ static uint32_t get_texture_address(const char *name)
 
 #include "pvr.h"
 #include "md3.h"
+#include "iqm.h"
 
 void transfer_background_polygon(uint32_t isp_tsp_parameter_start)
 {
@@ -326,14 +327,9 @@ void transfer_md3(const char *model_path, mat4 mvp)
 			decompress_vertex(vc, vpc);
 
 			// rotate around two different axes by theta
-			glm_vec3_rotate(vpa, theta, GLM_XUP);
-			glm_vec3_rotate(vpa, theta, GLM_YUP);
-
-			glm_vec3_rotate(vpb, theta, GLM_XUP);
-			glm_vec3_rotate(vpb, theta, GLM_YUP);
-
-			glm_vec3_rotate(vpc, theta, GLM_XUP);
-			glm_vec3_rotate(vpc, theta, GLM_YUP);
+			glm_vec3_rotate(vpa, theta, GLM_ZUP);
+			glm_vec3_rotate(vpb, theta, GLM_ZUP);
+			glm_vec3_rotate(vpc, theta, GLM_ZUP);
 
 			// multiply by mvp matrix
 			glm_mat4_mulv3(mvp, vpa, 1.0f, vpa);
@@ -362,6 +358,100 @@ void transfer_md3(const char *model_path, mat4 mvp)
 		}
 
 		surface = MD3_SURFACE_GET_NEXT(surface);
+	}
+
+	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
+}
+
+void transfer_iqm(const char *model_path, mat4 mvp)
+{
+	iqm_t *iqm = (iqm_t *)ROMFS_GetFileFromPath(model_path, NULL);
+	iqm_mesh_t *meshes = IQM_GET_MESHES(iqm);
+	iqm_vertex_array_t *vertex_arrays = IQM_GET_VERTEX_ARRAYS(iqm);
+	iqm_triangle_t *triangles = IQM_GET_TRIANGLES(iqm);
+
+	{
+		using namespace sh7091;
+		using sh7091::sh7091;
+
+		// set the store queue destination address to the TA Polygon Converter FIFO
+		sh7091.CCN.QACR0 = sh7091::ccn::qacr0::address(ta_fifo_polygon_converter);
+		sh7091.CCN.QACR1 = sh7091::ccn::qacr1::address(ta_fifo_polygon_converter);
+	}
+
+	uint32_t store_queue_ix = 0;
+
+	for (int i = 0; i < iqm->num_meshes; i++)
+	{
+		char texture_name[256];
+		iqm_mesh_t *mesh = meshes + i;
+
+		memset(texture_name, 0, sizeof(texture_name));
+		strlcat(texture_name, "textures/", sizeof(texture_name));
+		strlcat(texture_name, IQM_GET_TEXT(iqm) + mesh->material, sizeof(texture_name));
+		strlcat(texture_name, ".pvr", sizeof(texture_name));
+
+		store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_name);
+
+		for (int j = 0; j < mesh->num_triangles; j++)
+		{
+			iqm_triangle_t *triangle = triangles + mesh->first_triangle + j;
+
+			vec3 vp[3];
+			vec2 vt[3];
+
+			for (int k = 0; k < iqm->num_vertex_arrays; k++)
+			{
+				iqm_vertex_array_t *vertex_array = vertex_arrays + k;
+				void *data = (uint8_t *)iqm + vertex_array->offset;
+
+				switch (vertex_array->type)
+				{
+					case IQM_VERTEX_ARRAY_TYPE_POSITION:
+					{
+						for (int l = 0; l < 3; l++)
+						{
+							float *ptr = (float *)data + (3 * triangle->vertices[l]);
+							glm_vec3_copy(ptr, vp[l]);
+						}
+						break;
+					}
+
+					case IQM_VERTEX_ARRAY_TYPE_TEXCOORD:
+					{
+						for (int l = 0; l < 3; l++)
+						{
+							float *ptr = (float *)data + (2 * triangle->vertices[l]);
+							glm_vec2_copy(ptr, vt[l]);
+						}
+						break;
+					}
+
+					default:
+					{
+						break;
+					}
+				}
+			}
+
+			for (int l = 0; l < 3; l++)
+			{
+				glm_vec3_rotate(vp[l], theta, GLM_ZUP);
+				glm_mat4_mulv3(mvp, vp[l], 1.0f, vp[l]);
+				vertex_perspective_divide(vp[l]);
+				vertex_screen_space(vp[l]);
+			}
+
+			// vertex color is irrelevant in "decal" mode
+			uint32_t va_color = 0;
+			uint32_t vb_color = 0;
+			uint32_t vc_color = 0;
+
+			store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
+														vp[0][0], vp[0][1], vp[0][2], vt[0][0], vt[0][1], va_color,
+														vp[1][0], vp[1][1], vp[1][2], vt[1][0], vt[1][1], vb_color,
+														vp[2][0], vp[2][1], vp[2][2], vt[2][0], vt[2][1], vc_color);
+		}
 	}
 
 	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
@@ -515,11 +605,10 @@ void main()
   // framebuffer.
   holly.FB_R_SOF1 = framebuffer_start;
 
-	mat4 model = GLM_MAT4_IDENTITY_INIT, proj, view, viewproj, mvp;
-	glm_lookat((vec3){32, 32, 32}, (vec3){0, 0, 0}, GLM_YUP, view);
-	glm_perspective(70, 640.0f/480.0f, 0.1f, 1024.0f, proj);
+	mat4 proj, view, viewproj;
+	glm_lookat((vec3){64, 0, 0}, (vec3){0, 0, 0}, GLM_ZUP, view);
+	glm_perspective(80, 640.0f/480.0f, 0.1f, 1024.0f, proj);
 	glm_mat4_mul(proj, view, viewproj);
-	glm_mat4_mul(viewproj, model, mvp);
 
 	// draw 500 frames of cube rotation
 	while (1)
@@ -538,7 +627,23 @@ void main()
 			// step is required.
 			(void)holly.TA_LIST_INIT;
 
+			//////////////////////////////////////////////////////////////////////////////
+			// render models
+			//////////////////////////////////////////////////////////////////////////////
+
+			mat4 model, mvp;
+
+			glm_mat4_identity(model);
+			glm_translate_y(model, -32);
+			glm_mat4_mul(viewproj, model, mvp);
+
 			transfer_md3("models/dreamcasko.md3", mvp);
+
+			glm_mat4_identity(model);
+			glm_translate_y(model, 32);
+			glm_mat4_mul(viewproj, model, mvp);
+
+			transfer_iqm("models/dreamcasko.iqm", mvp);
 
 			//////////////////////////////////////////////////////////////////////////////
 			// wait for vertical synchronization (and the TA)
