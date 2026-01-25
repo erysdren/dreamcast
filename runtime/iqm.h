@@ -6,6 +6,8 @@ extern "C" {
 
 #include <stdint.h>
 
+#pragma pack(push, 1)
+
 #define IQM_MAGIC ("INTERQUAKEMODEL\0")
 #define IQM_VERSION (2)
 
@@ -137,6 +139,8 @@ typedef struct iqm_extension {
 	uint32_t num_data, ofs_data;
 	uint32_t ofs_next; // pointer to next extension
 } iqm_extension_t;
+
+#pragma pack(pop)
 
 #ifdef __cplusplus
 }
