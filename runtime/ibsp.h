@@ -32,6 +32,21 @@ enum {
 	IBSP_NUM_LUMPS = 17
 };
 
+#define IBSP_MAX_ENTITIES (16384)
+#define IBSP_MAX_TEXTURES (32)
+#define IBSP_MAX_PLANES (8192)
+#define IBSP_MAX_NODES (8192)
+#define IBSP_MAX_LEAFS (8192)
+#define IBSP_MAX_LEAFFACES (8192)
+#define IBSP_MAX_LEAFBRUSHES (8192)
+#define IBSP_MAX_MODELS (1024)
+#define IBSP_MAX_BRUSHES (16384)
+#define IBSP_MAX_BRUSHSIDES (8192)
+#define IBSP_MAX_VERTICES (32768)
+#define IBSP_MAX_MESHVERTS (32768)
+#define IBSP_MAX_FACES (8192)
+#define IBSP_MAX_VISDATA (32768)
+
 typedef struct ibsp_plane {
 	float normal[3];
 	float dist;
