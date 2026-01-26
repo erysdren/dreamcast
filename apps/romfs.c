@@ -54,7 +54,9 @@ size_t ROMFS_GlobFiles(const char *wild, const char **matched, size_t max_matche
 
 		if (wildcmp(wild, zip_dir[i].path))
 		{
-			matched[num_matched++] = zip_dir[i].path;
+			if (matched)
+				matched[num_matched] = zip_dir[i].path;
+			num_matched++;
 		}
 	}
 	return num_matched;
