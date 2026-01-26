@@ -1,0 +1,1 @@
+g++ -o ttf_bitmap ttf_bitmap.cpp -I/usr/include/freetype2/ -lfreetype
