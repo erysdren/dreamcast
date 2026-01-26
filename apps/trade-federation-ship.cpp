@@ -327,7 +327,7 @@ static struct camera_t {
 	vec3 origin;
 } r_camera;
 
-int32_t cluster_for_point(vec3 p)
+ibsp_leaf& leaf_for_point(vec3 p)
 {
 	int32_t index = 0;
 
@@ -343,7 +343,7 @@ int32_t cluster_for_point(vec3 p)
 			index = node->children[1];
 	}
 
-	return ibsp.leafs[-index - 1].cluster;
+	return ibsp.leafs[-index - 1];
 }
 
 uint32_t mark_visible_leafs(int32_t cluster)
@@ -660,7 +660,7 @@ void main()
 	while (1)
 	{
 		// get camera cluster
-		r_camera_cluster = cluster_for_point(r_camera.origin);
+		r_camera_cluster = leaf_for_point(r_camera.origin).cluster;
 
 		// mark visible leafs
 		if (r_camera_prev_cluster != r_camera_cluster)
