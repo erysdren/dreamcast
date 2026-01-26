@@ -5,7 +5,7 @@
 
 #include "parse.h"
 #include "unparse.h"
-//#include "sh7091_scif.h"
+#include "utils.h"
 
 enum format_type {
   FORMAT_BASE10_UNSIGNED,
@@ -206,6 +206,112 @@ void _printf(const char * format, ...)
       {
         char c = *format++;
         print_char(c);
+      }
+      break;
+    }
+  }
+
+  va_end(args);
+}
+
+void _sprintf(char *dst, const char* format, ...)
+{
+  va_list args;
+  va_start(args, format);
+
+#define _print_string(s, len) memcpy(dst, s, len); dst += len
+#define _print_char(c) *dst++ = c
+
+  while (true) {
+    if (*format == 0)
+      break;
+
+    switch (*format) {
+    case '%':
+      {
+        struct format ft = {0};
+        format = parse_escape(format + 1, &ft);
+        switch (ft.type) {
+        case FORMAT_BASE10_UNSIGNED:
+          {
+            uint32_t num = va_arg(args, uint32_t);
+            char s[16];
+            int offset = unparse_base10_unsigned(s, num, ft.pad_length, ft.fill_char);
+            _print_string(s, offset);
+          }
+          break;
+        case FORMAT_BASE10:
+          {
+            int32_t num = va_arg(args, int32_t);
+            char s[16];
+            int offset = unparse_base10(s, num, ft.pad_length, ft.fill_char);
+            _print_string(s, offset);
+          }
+          break;
+        case FORMAT_BASE10_64:
+          {
+            int64_t num = va_arg(args, int64_t);
+            char s[16];
+            int offset = unparse_base10_64(s, num, ft.pad_length, ft.fill_char);
+            _print_string(s, offset);
+          }
+          break;
+        case FORMAT_POINTER:
+          {
+            _print_char('0');
+            _print_char('x');
+          }
+          [[fallthrough]];
+        case FORMAT_BASE16:
+          {
+            uint32_t num = va_arg(args, uint32_t);
+            char s[16];
+            int offset = unparse_base16(s, num, ft.pad_length, ft.fill_char);
+            _print_string(s, offset);
+          }
+          break;
+        case FORMAT_STRING:
+          {
+            const char * s = va_arg(args, const char *);
+            while (*s != 0) {
+              char c = *s++;
+              _print_char(c);
+            }
+          }
+          break;
+        case FORMAT_CHAR:
+          {
+            const int c = va_arg(args, const int);
+            _print_char((char)c);
+          }
+          break;
+        case FORMAT_FLOAT:
+          {
+            double num = va_arg(args, double);
+            if (num < 0) {
+              _print_char('-');
+              num = -num;
+            }
+            char s[20];
+            int32_t whole = num;
+            int offset = unparse_base10_unsigned(s, whole, ft.pad_length, ft.fill_char);
+            _print_string(s, offset);
+            _print_char('.');
+            int32_t fraction = (int32_t)((num - (float)whole) * 1000.0);
+            offset = unparse_base10_unsigned(s, fraction, 3, '0');
+            _print_string(s, offset);
+          }
+          break;
+        case FORMAT_PERCENT:
+          _print_char('%');
+          break;
+        }
+      }
+      break;
+    default:
+      {
+        char c = *format++;
+        _print_char(c);
       }
       break;
     }

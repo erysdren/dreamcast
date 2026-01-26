@@ -33,8 +33,10 @@ RUNTIME_EXTERN void print_cstring(const char* s);
 RUNTIME_EXTERN void print_integer(const int n);
 
 RUNTIME_EXTERN void _printf(const char* format, ...);
+RUNTIME_EXTERN void _sprintf(char *s, const char* format, ...);
 
 #define printf(...) _printf(__VA_ARGS__)
+#define sprintf(s, ...) _sprintf(s, __VA_ARGS__)
 #define printc(c) print_char(c)
 #define prints(s) print_cstring(s)
 
