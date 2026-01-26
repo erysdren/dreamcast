@@ -73,6 +73,15 @@ function(dc_make_cdi target)
 	)
 endfunction()
 
+function(dc_make_zip target destination)
+	add_custom_command(
+		TARGET ${target}
+		PRE_BUILD
+		WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/content
+		COMMAND 7z ARGS a -m0=Copy ${destination} maps models textures
+	)
+endfunction()
+
 function(dc_make_romfs target source destination)
 	add_custom_command(
 		TARGET ${target}
