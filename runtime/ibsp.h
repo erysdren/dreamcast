@@ -33,7 +33,7 @@ enum {
 };
 
 #define IBSP_MAX_ENTITIES (16384)
-#define IBSP_MAX_TEXTURES (32)
+#define IBSP_MAX_TEXTURES (1024)
 #define IBSP_MAX_PLANES (8192)
 #define IBSP_MAX_NODES (8192)
 #define IBSP_MAX_LEAFS (8192)
