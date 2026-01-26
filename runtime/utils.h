@@ -7,6 +7,8 @@ extern "C" {
 #include <stddef.h>
 #include <stdint.h>
 
+#include "tinyalloc/tinyalloc.h"
+
 #define cos(n) __builtin_cosf(n)
 #define cosf(n) __builtin_cosf(n)
 #define sin(n) __builtin_sinf(n)
@@ -59,6 +61,11 @@ char tolower(char c);
 bool wildcmp(const char *wild, const char *string);
 
 [[noreturn]] void exit(int code);
+
+#define malloc(n) ta_alloc(n)
+#define calloc(n, s) ta_calloc(n, s)
+#define realloc(p, n) ta_realloc(p, n)
+#define free(p) ta_free(p)
 
 #ifdef __cplusplus
 }

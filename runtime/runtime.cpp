@@ -5,6 +5,8 @@
 #include "sh7091/store_queue_transfer.hpp"
 #include "sh7091/serial.hpp"
 
+#include "tinyalloc/tinyalloc.h"
+
 extern uint32_t __text_link_start __asm("__text_link_start");
 extern uint32_t __text_link_end __asm("__text_link_end");
 extern uint32_t __text_load_start __asm("__text_load_start");
@@ -33,6 +35,9 @@ static void __attribute__((section(".text.startup.copy"))) copy(uint32_t* start,
 		}
 	}
 }
+
+// 4mb heap
+static uint8_t heap[4 * 1024 * 1024] __attribute__((aligned(32)));
 
 extern "C" void __attribute__((section(".text.startup.runtime_init"))) runtime_init()
 {
@@ -63,4 +68,7 @@ extern "C" void __attribute__((section(".text.startup.runtime_init"))) runtime_i
 
 	// init serial interface
 	sh7091::serial::init(0);
+
+	// initialize heap
+	ta_init(heap, heap + sizeof(heap), 256, 16, sizeof(void *));
 }
