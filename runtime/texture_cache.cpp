@@ -23,6 +23,7 @@ static uint32_t texture_address_next = TEXTURE_INVALID;
 RUNTIME_EXTERN void texture_cache_init(uint32_t texture_address)
 {
 	texture_address_next = texture_address;
+	num_textures = 0;
 }
 
 static uint32_t transfer_pvr(const pvr_t *pvr, uint32_t texture_address)
