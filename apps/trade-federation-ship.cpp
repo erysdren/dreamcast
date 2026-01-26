@@ -488,8 +488,6 @@ uint32_t transfer_textures(uint32_t texture_address)
 		texture_address = transfer_texture(textures[i].name, texture_address);
 	}
 
-	// printf("texture memory used: %zu bytes\n", texture_address - texture_start);
-
 	return texture_address;
 }
 
@@ -569,6 +567,8 @@ void main()
 	uint32_t texture_address = texture_start;
 	texture_address = transfer_textures(texture_address);
 	texture_address = transfer_lightmaps(texture_address);
+
+	printf("texture memory used: %zu bytes\n", texture_address - texture_start);
 
   //////////////////////////////////////////////////////////////////////////////
   // configure the TA
