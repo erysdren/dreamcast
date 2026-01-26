@@ -40,10 +40,11 @@ static struct {
 	{ "textures/dev/ref_80a.pvr", zip + 633951, 6160 },
 	{ "textures/dev/ref_90.pvr", zip + 640164, 6160 },
 	{ "textures/dev/ref_90a.pvr", zip + 646378, 6160 },
-	{ "textures/models/dreamcasko/body.pvr", zip + 652706, 8208 },
-	{ "textures/models/dreamcasko/clothing.pvr", zip + 660983, 8208 },
-	{ "textures/models/dreamcasko/face.pvr", zip + 669256, 8208 },
+	{ "textures/fonts/ter-u12n.pvr", zip + 652640, 16400 },
+	{ "textures/models/dreamcasko/body.pvr", zip + 669208, 8208 },
+	{ "textures/models/dreamcasko/clothing.pvr", zip + 677485, 8208 },
+	{ "textures/models/dreamcasko/face.pvr", zip + 685758, 8208 },
 	{ NULL, NULL, 0 }
 };
 
-static const size_t zip_dir_num_files = 33;
+static const size_t zip_dir_num_files = 34;
