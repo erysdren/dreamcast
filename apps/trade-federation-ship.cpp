@@ -23,35 +23,12 @@
 #define ROMFS_SOURCE_FILENAME "trade-federation-ship.pk3.h"
 #include "romfs.c"
 
-#define MAX_TEXTURES 256
-
-static struct {
-	const char *name;
-	uint32_t ofs;
-} textures[MAX_TEXTURES];
-static size_t num_textures = 0;
-
-static uint32_t get_texture_address(const char *name)
-{
-	for (int i = 0; i < num_textures; i++)
-		if (strcmp(name, textures[i].name) == 0)
-			return textures[i].ofs;
-	return 0;
-}
-
-#define MAX_LIGHTMAPS 256
-
-static struct {
-	uint32_t ofs;
-} lightmaps[MAX_LIGHTMAPS];
-
-static uint32_t get_lightmap_texture_address(uint32_t index)
-{
-	return lightmaps[index].ofs;
-}
-
 #include "pvr.h"
 #include "ibsp.h"
+#include "texture_cache.h"
+
+static uint32_t r_ibsp_shader_textures[256];
+static uint32_t r_ibsp_lightmap_textures[256];
 
 void transfer_background_polygon(uint32_t isp_tsp_parameter_start)
 {
@@ -105,7 +82,7 @@ static inline uint32_t transfer_ta_global_end_of_list(uint32_t store_queue_ix)
 	return store_queue_ix;
 }
 
-static inline uint32_t transfer_ta_global_polygon_lightmap(uint32_t store_queue_ix, uint32_t lightmap_index)
+static inline uint32_t transfer_ta_global_polygon_lightmap(uint32_t store_queue_ix, uint32_t texture_index)
 {
 	using namespace holly::core::parameter;
 	using namespace holly::ta;
@@ -136,14 +113,11 @@ static inline uint32_t transfer_ta_global_polygon_lightmap(uint32_t store_queue_
 									| tsp_instruction_word::filter_mode::bilinear_filter
 									| tsp_instruction_word::texture_shading_instruction::decal;
 
-	polygon->tsp_instruction_word |= tsp_instruction_word::texture_u_size::from_int(128);
-	polygon->tsp_instruction_word |= tsp_instruction_word::texture_v_size::from_int(128);
+	const auto* t = texture_cache_get(texture_index);
 
-	uint32_t texture_address = get_lightmap_texture_address(lightmap_index);
+	polygon->tsp_instruction_word |= t->tsp_instruction_word;
 
-	polygon->texture_control_word = texture_control_word::texture_address(texture_address / 8);
-	polygon->texture_control_word |= texture_control_word::scan_order::non_twiddled;
-	polygon->texture_control_word |= texture_control_word::pixel_format::rgb565;
+	polygon->texture_control_word = t->texture_control_word;
 
 	// start store queue transfer of `polygon` to the TA
 	pref(polygon);
@@ -151,20 +125,11 @@ static inline uint32_t transfer_ta_global_polygon_lightmap(uint32_t store_queue_
 	return store_queue_ix;
 }
 
-static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, const char *texture_name)
+static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint32_t texture_index)
 {
 	using namespace holly::core::parameter;
 	using namespace holly::ta;
 	using namespace holly::ta::parameter;
-
-	// validate pvr
-	int pvr_error = PVR_ERROR_NONE;
-	const pvr_t *pvr = pvr_validate(ROMFS_GetFileFromPath(texture_name, NULL), &pvr_error);
-	if (!pvr)
-	{
-		printf("pvr failed to validate: %s (%d)\n", texture_name, pvr_error);
-		return store_queue_ix;
-	}
 
 	//
 	// TA polygon global transfer
@@ -191,50 +156,11 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, const
 									| tsp_instruction_word::filter_mode::bilinear_filter
 									| tsp_instruction_word::texture_shading_instruction::decal;
 
-	auto pixel_type = PVR_GET_PIXEL_TYPE(pvr);
-	auto image_type = PVR_GET_IMAGE_TYPE(pvr);
+	const auto* t = texture_cache_get(texture_index);
 
-	polygon->tsp_instruction_word |= tsp_instruction_word::texture_u_size::from_int(pvr->width);
-	polygon->tsp_instruction_word |= tsp_instruction_word::texture_v_size::from_int(pvr->height);
+	polygon->tsp_instruction_word |= t->tsp_instruction_word;
 
-	uint32_t texture_address = get_texture_address(texture_name);
-
-	polygon->texture_control_word = texture_control_word::texture_address(texture_address / 8);
-
-	switch (image_type)
-	{
-		case PVR_IMAGE_TYPE_TWIDDLED:
-			polygon->texture_control_word |= texture_control_word::scan_order::twiddled;
-			break;
-		case PVR_IMAGE_TYPE_TWIDDLED_MM:
-			polygon->texture_control_word |= texture_control_word::scan_order::twiddled | texture_control_word::mip_mapped;
-			break;
-		case PVR_IMAGE_TYPE_VQ:
-			polygon->texture_control_word |= texture_control_word::scan_order::twiddled | texture_control_word::vq_compressed;
-			break;
-		case PVR_IMAGE_TYPE_VQ_MM:
-			polygon->texture_control_word |= texture_control_word::scan_order::twiddled | texture_control_word::vq_compressed | texture_control_word::mip_mapped;
-			break;
-		case PVR_IMAGE_TYPE_RECTANGULAR:
-			polygon->texture_control_word |= texture_control_word::scan_order::non_twiddled;
-			break;
-		case PVR_IMAGE_TYPE_RECTANGULAR_MM:
-			polygon->texture_control_word |= texture_control_word::scan_order::non_twiddled | texture_control_word::mip_mapped;
-			break;
-		default:
-			printf("warning: unexpected PVR image type %d\n", image_type);
-			break;
-	}
-
-	switch (pixel_type)
-	{
-		case PVR_PIXEL_TYPE_ARGB1555: polygon->texture_control_word |= texture_control_word::pixel_format::argb1555; break;
-		case PVR_PIXEL_TYPE_RGB565: polygon->texture_control_word |= texture_control_word::pixel_format::rgb565; break;
-		case PVR_PIXEL_TYPE_ARGB4444: polygon->texture_control_word |= texture_control_word::pixel_format::argb4444; break;
-		default:
-			printf("warning: unexpected PVR pixel type %d\n", pixel_type);
-			break;
-	}
+	polygon->texture_control_word = t->texture_control_word;
 
 	// start store queue transfer of `polygon` to the TA
 	pref(polygon);
@@ -318,6 +244,7 @@ static ibsp_t ibsp;
 static bool r_visible_leafs[IBSP_MAX_LEAFS];
 static bool r_visible_faces[IBSP_MAX_FACES];
 static bool r_use_vis = true;
+static bool r_use_lightmaps = true;
 static uint32_t r_num_visible_leafs = 0;
 static int32_t r_camera_cluster = -1;
 static int32_t r_camera_prev_cluster = -1;
@@ -401,11 +328,6 @@ static void transfer_ibsp(mat4 mvp)
 		if (strncmp(ibsp.textures[face->texture].name, "textures/", 9) != 0)
 			continue;
 
-		char texture_name[256];
-		memset(texture_name, 0, sizeof(texture_name));
-		strlcat(texture_name, ibsp.textures[face->texture].name, sizeof(texture_name));
-		strlcat(texture_name, ".pvr", sizeof(texture_name));
-
 		for (int j = 0; j < face->num_meshverts; j += 3)
 		{
 			bool skip = false;
@@ -434,65 +356,64 @@ static void transfer_ibsp(mat4 mvp)
 			if (skip)
 				continue;
 
-			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_name);
+			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, r_ibsp_shader_textures[face->texture]);
+
+			if (r_ibsp_shader_textures[face->texture] == TEXTURE_INVALID)
+				printf("invalid shader texture: %s\n", ibsp.textures[face->texture].name);
 
 			store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
 														vp[0][0], vp[0][1], vp[0][2], vt[0][0], vt[0][1], vc[0],
 														vp[1][0], vp[1][1], vp[1][2], vt[1][0], vt[1][1], vc[1],
 														vp[2][0], vp[2][1], vp[2][2], vt[2][0], vt[2][1], vc[2]);
 
-			for (int k = 0; k < 3; k++)
+			if (r_use_lightmaps)
 			{
-				ibsp_vertex_t *vertex = &ibsp.vertices[face->first_vert + ibsp.meshverts[face->first_meshvert + j + k]];
-				glm_vec2_copy(vertex->texcoords[1], vt[k]);
+				for (int k = 0; k < 3; k++)
+				{
+					ibsp_vertex_t *vertex = &ibsp.vertices[face->first_vert + ibsp.meshverts[face->first_meshvert + j + k]];
+					glm_vec2_copy(vertex->texcoords[1], vt[k]);
+				}
+
+				if (r_ibsp_lightmap_textures[face->lightmap] == TEXTURE_INVALID)
+					printf("invalid shader lightmap: %u\n", face->lightmap);
+
+				store_queue_ix = transfer_ta_global_polygon_lightmap(store_queue_ix, r_ibsp_lightmap_textures[face->lightmap]);
+
+				store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
+															vp[0][0], vp[0][1], vp[0][2], vt[0][0], vt[0][1], vc[0],
+															vp[1][0], vp[1][1], vp[1][2], vt[1][0], vt[1][1], vc[1],
+															vp[2][0], vp[2][1], vp[2][2], vt[2][0], vt[2][1], vc[2]);
 			}
-
-			store_queue_ix = transfer_ta_global_polygon_lightmap(store_queue_ix, face->lightmap);
-
-			store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
-														vp[0][0], vp[0][1], vp[0][2], vt[0][0], vt[0][1], vc[0],
-														vp[1][0], vp[1][1], vp[1][2], vt[1][0], vt[1][1], vc[1],
-														vp[2][0], vp[2][1], vp[2][2], vt[2][0], vt[2][1], vc[2]);
 		}
 	}
 
 	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
 }
 
-uint32_t transfer_texture(const char *name, uint32_t texture_address)
+static void transfer_textures()
 {
-	// use 4-byte transfers to texture memory, for slightly increased transfer
-	// speed
-	//
-	// It would be even faster to use the SH4 store queue for this operation, or
-	// SH4 DMA.
-
-	const pvr_t *pvr = pvr_validate(ROMFS_GetFileFromPath(name, NULL), NULL);
-
-	sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_address], PVR_GET_PIXEL_DATA(pvr), PVR_GET_PIXEL_DATA_SIZE(pvr));
-
-	return texture_address + PVR_GET_PIXEL_DATA_SIZE(pvr);
-}
-
-uint32_t transfer_textures(uint32_t texture_address)
-{
-	const char *matched[MAX_TEXTURES];
-
-	num_textures = ROMFS_GlobFiles("*.pvr", matched, MAX_TEXTURES);
-
-	for (int i = 0; i < num_textures; i++)
+	for (int i = 0; i < ibsp.num_textures; i++)
 	{
-		textures[i].name = matched[i];
-		textures[i].ofs = texture_address;
-		texture_address = transfer_texture(textures[i].name, texture_address);
-	}
+		char filename[256];
+		strlcpy(filename, ibsp.textures[i].name, sizeof(filename));
+		strlcat(filename, ".pvr", sizeof(filename));
 
-	return texture_address;
+		const pvr_t *pvr = (const pvr_t *)ROMFS_GetFileFromPath(filename, NULL);
+
+		if (pvr)
+		{
+			r_ibsp_shader_textures[i] = texture_cache_pvr(pvr);
+		}
+		else
+		{
+			r_ibsp_shader_textures[i] = TEXTURE_INVALID;
+		}
+	}
 }
 
 #define PACK_RGB565(r, g, b) ((((r) >> 3) << 11) | (((g) >> 2) << 5) | (((b) >> 3) << 0))
 
-uint32_t transfer_lightmaps(uint32_t texture_address)
+static void transfer_lightmaps()
 {
 	uint16_t lightmap565[128][128];
 
@@ -509,48 +430,42 @@ uint32_t transfer_lightmaps(uint32_t texture_address)
 			}
 		}
 
-		sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_address], lightmap565, sizeof(lightmap565));
-
-		lightmaps[i].ofs = texture_address;
-
-		texture_address += sizeof(lightmap565);
+		r_ibsp_lightmap_textures[i] = texture_cache_raw(128, 128, TEXTURE_TYPE_RGB565, TEXTURE_FLAG_NONE, lightmap565, sizeof(lightmap565));
 	}
-
-	return texture_address;
 }
 
 void main()
 {
-  /*
-    a very simple memory map:
+	/*
+		a very simple memory map:
 
-    the ordering within texture memory is not significant, and could be
-    anything
-  */
-  uint32_t framebuffer_start       = 0x496000;
-  uint32_t isp_tsp_parameter_start = 0x000000;
-  uint32_t region_array_start      = 0x21c000;
-  uint32_t object_list_start       = 0x400000;
+		the ordering within texture memory is not significant, and could be
+		anything
+	*/
+	uint32_t framebuffer_start       = 0x496000;
+	uint32_t isp_tsp_parameter_start = 0x000000;
+	uint32_t region_array_start      = 0x21c000;
+	uint32_t object_list_start       = 0x400000;
 
-  // these addresses are in "64-bit" texture memory address space:
-  uint32_t texture_start           = 0x5a9840;
+	// these addresses are in "64-bit" texture memory address space:
+	uint32_t texture_start           = 0x5a9840;
 
-  const int tile_y_num = 480 / 32;
-  const int tile_x_num = 640 / 32;
+	const int tile_y_num = 480 / 32;
+	const int tile_x_num = 640 / 32;
 
-  using namespace holly::core;
+	using namespace holly::core;
 
-  region_array::list_block_size list_block_size = {
-    .opaque = 8 * 4,
-  };
+	region_array::list_block_size list_block_size = {
+		.opaque = 8 * 4,
+	};
 
-  region_array::transfer(tile_x_num,
-                         tile_y_num,
-                         list_block_size,
-                         region_array_start,
-                         object_list_start);
+	region_array::transfer(tile_x_num,
+							tile_y_num,
+							list_block_size,
+							region_array_start,
+							object_list_start);
 
-  transfer_background_polygon(isp_tsp_parameter_start);
+	transfer_background_polygon(isp_tsp_parameter_start);
 
 	//////////////////////////////////////////////////////////////////////////////
 	// load bsp data
@@ -563,90 +478,90 @@ void main()
 	// transfer the texture images to texture ram
 	//////////////////////////////////////////////////////////////////////////////
 
-	uint32_t texture_address = texture_start;
-	texture_address = transfer_textures(texture_address);
-	texture_address = transfer_lightmaps(texture_address);
+	texture_cache_init(texture_start);
+	transfer_textures();
+	transfer_lightmaps();
 
-	printf("texture memory used: %zu bytes\n", texture_address - texture_start);
+	// printf("texture memory used: %zu bytes\n", texture_address - texture_start);
 
-  //////////////////////////////////////////////////////////////////////////////
-  // configure the TA
-  //////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////
+	// configure the TA
+	//////////////////////////////////////////////////////////////////////////////
 
-  using namespace holly;
-  using holly::holly;
+	using namespace holly;
+	using holly::holly;
 
-  // TA_GLOB_TILE_CLIP restricts which "object pointer blocks" are written
-  // to.
-  //
-  // This can also be used to implement "windowing", as long as the desired
-  // window size happens to be a multiple of 32 pixels. The "User Tile Clip" TA
-  // control parameter can also ~equivalently be used as many times as desired
-  // within a single TA initialization to produce an identical effect.
-  //
-  // See DCDBSysArc990907E.pdf page 183.
-  holly.TA_GLOB_TILE_CLIP = ta_glob_tile_clip::tile_y_num(tile_y_num - 1)
-                          | ta_glob_tile_clip::tile_x_num(tile_x_num - 1);
+	// TA_GLOB_TILE_CLIP restricts which "object pointer blocks" are written
+	// to.
+	//
+	// This can also be used to implement "windowing", as long as the desired
+	// window size happens to be a multiple of 32 pixels. The "User Tile Clip" TA
+	// control parameter can also ~equivalently be used as many times as desired
+	// within a single TA initialization to produce an identical effect.
+	//
+	// See DCDBSysArc990907E.pdf page 183.
+	holly.TA_GLOB_TILE_CLIP = ta_glob_tile_clip::tile_y_num(tile_y_num - 1)
+							| ta_glob_tile_clip::tile_x_num(tile_x_num - 1);
 
-  // While CORE supports arbitrary-length object lists, the TA uses "object
-  // pointer blocks" as a memory allocation strategy. These fixed-length blocks
-  // can still have infinite length via "object pointer block links". This
-  // mechanism is illustrated in DCDBSysArc990907E.pdf page 188.
-  holly.TA_ALLOC_CTRL = ta_alloc_ctrl::opb_mode::increasing_addresses
-                      | ta_alloc_ctrl::o_opb::_8x4byte;
+	// While CORE supports arbitrary-length object lists, the TA uses "object
+	// pointer blocks" as a memory allocation strategy. These fixed-length blocks
+	// can still have infinite length via "object pointer block links". This
+	// mechanism is illustrated in DCDBSysArc990907E.pdf page 188.
+	holly.TA_ALLOC_CTRL = ta_alloc_ctrl::opb_mode::increasing_addresses
+						| ta_alloc_ctrl::o_opb::_8x4byte;
 
-  // While building object lists, the TA contains an internal index (exposed as
-  // the read-only TA_ITP_CURRENT) for the next address that new ISP/TSP will be
-  // stored at. The initial value of this index is TA_ISP_BASE.
+	// While building object lists, the TA contains an internal index (exposed as
+	// the read-only TA_ITP_CURRENT) for the next address that new ISP/TSP will be
+	// stored at. The initial value of this index is TA_ISP_BASE.
 
-  // reserve space in ISP/TSP parameters for the background parameter
-  using polygon = holly::core::parameter::isp_tsp_parameter<3>;
-  uint32_t ta_isp_base_offset = (sizeof (polygon)) * 1;
+	// reserve space in ISP/TSP parameters for the background parameter
+	using polygon = holly::core::parameter::isp_tsp_parameter<3>;
+	uint32_t ta_isp_base_offset = (sizeof (polygon)) * 1;
 
-  holly.TA_ISP_BASE = isp_tsp_parameter_start + ta_isp_base_offset;
-  holly.TA_ISP_LIMIT = 0x21bfe0;
+	holly.TA_ISP_BASE = isp_tsp_parameter_start + ta_isp_base_offset;
+	holly.TA_ISP_LIMIT = 0x21bfe0;
 
-  // Similarly, the TA also contains, for up to 600 tiles, an internal index for
-  // the next address that an object list entry will be stored for each
-  // tile. These internal indicies are partially exposed via the read-only
-  // TA_OL_POINTERS.
-  holly.TA_OL_BASE = object_list_start;
+	// Similarly, the TA also contains, for up to 600 tiles, an internal index for
+	// the next address that an object list entry will be stored for each
+	// tile. These internal indicies are partially exposed via the read-only
+	// TA_OL_POINTERS.
+	holly.TA_OL_BASE = object_list_start;
 
-  // TA_OL_LIMIT, DCDBSysArc990907E.pdf page 385:
-  //
-  // >   Because the TA may automatically store data in the address that is
-  // >   specified by this register, it must not be used for other data.  For
-  // >   example, the address specified here must not be the same as the address
-  // >   in the TA_ISP_BASE register.
-  holly.TA_OL_LIMIT = 0x495fe0;
+	// TA_OL_LIMIT, DCDBSysArc990907E.pdf page 385:
+	//
+	// >   Because the TA may automatically store data in the address that is
+	// >   specified by this register, it must not be used for other data.  For
+	// >   example, the address specified here must not be the same as the address
+	// >   in the TA_ISP_BASE register.
+	holly.TA_OL_LIMIT = 0x495fe0;
 
-  //////////////////////////////////////////////////////////////////////////////
-  // configure CORE
-  //////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////
+	// configure CORE
+	//////////////////////////////////////////////////////////////////////////////
 
-  // REGION_BASE is the (texture memory-relative) address of the region array.
-  holly.REGION_BASE = region_array_start;
+	// REGION_BASE is the (texture memory-relative) address of the region array.
+	holly.REGION_BASE = region_array_start;
 
-  // PARAM_BASE is the (texture memory-relative) address of ISP/TSP parameters.
-  // Anything that references an ISP/TSP parameter does so relative to this
-  // address (and not relative to the beginning of texture memory).
-  holly.PARAM_BASE = isp_tsp_parameter_start;
+	// PARAM_BASE is the (texture memory-relative) address of ISP/TSP parameters.
+	// Anything that references an ISP/TSP parameter does so relative to this
+	// address (and not relative to the beginning of texture memory).
+	holly.PARAM_BASE = isp_tsp_parameter_start;
 
-  // Set the offset of the background ISP/TSP parameter, relative to PARAM_BASE
-  // SKIP is related to the size of each vertex
-  uint32_t background_offset = 0;
+	// Set the offset of the background ISP/TSP parameter, relative to PARAM_BASE
+	// SKIP is related to the size of each vertex
+	uint32_t background_offset = 0;
 
-  holly.ISP_BACKGND_T = isp_backgnd_t::tag_address(background_offset / 4)
-                      | isp_backgnd_t::tag_offset(0)
-                      | isp_backgnd_t::skip(1);
+	holly.ISP_BACKGND_T = isp_backgnd_t::tag_address(background_offset / 4)
+						| isp_backgnd_t::tag_offset(0)
+						| isp_backgnd_t::skip(1);
 
-  // FB_W_SOF1 is the (texture memory-relative) address of the framebuffer that
-  // will be written to when a tile is rendered/flushed.
-  holly.FB_W_SOF1 = framebuffer_start;
+	// FB_W_SOF1 is the (texture memory-relative) address of the framebuffer that
+	// will be written to when a tile is rendered/flushed.
+	holly.FB_W_SOF1 = framebuffer_start;
 
-  // without waiting for rendering to actually complete, immediately display the
-  // framebuffer.
-  holly.FB_R_SOF1 = framebuffer_start;
+	// without waiting for rendering to actually complete, immediately display the
+	// framebuffer.
+	holly.FB_R_SOF1 = framebuffer_start;
 
 	mat4 model = GLM_MAT4_IDENTITY_INIT, proj, view = GLM_MAT4_IDENTITY_INIT, viewproj, mvp;
 	glm_vec3_copy((vec3){128, 0, 64}, r_camera.origin);
