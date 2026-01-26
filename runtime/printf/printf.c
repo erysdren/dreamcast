@@ -317,5 +317,10 @@ void _sprintf(char *dst, const char* format, ...)
     }
   }
 
+  *dst = 0;
+
+#undef _print_string
+#undef _print_char
+
   va_end(args);
 }
