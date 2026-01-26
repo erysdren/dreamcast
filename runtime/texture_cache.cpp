@@ -26,13 +26,13 @@ RUNTIME_EXTERN void texture_cache_init(uint32_t texture_address)
 	num_textures = 0;
 }
 
-static uint32_t transfer_pvr(const pvr_t *pvr, uint32_t texture_address)
+static uint32_t transfer_texture(const void *data, size_t len, uint32_t texture_address)
 {
-	sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_address], PVR_GET_PIXEL_DATA(pvr), PVR_GET_PIXEL_DATA_SIZE(pvr));
-	return texture_address + PVR_GET_PIXEL_DATA_SIZE(pvr);
+	sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_address], data, len);
+	return texture_address + len;
 }
 
-RUNTIME_EXTERN uint32_t texture_cache_pvr(const pvr_t *pvr)
+RUNTIME_EXTERN uint32_t texture_cache_raw(int width, int height, uint32_t type, uint32_t flags, const void *data, size_t len)
 {
 	using namespace holly::core::parameter;
 	using namespace holly::ta;
@@ -44,49 +44,88 @@ RUNTIME_EXTERN uint32_t texture_cache_pvr(const pvr_t *pvr)
 	if (num_textures >= MAX_TEXTURES)
 		return TEXTURE_INVALID;
 
+	if (type == TEXTURE_TYPE_NONE)
+		return TEXTURE_INVALID;
+
+	if (width < 8 || width > 1024 || (width & (width - 1)) != 0)
+		return TEXTURE_INVALID;
+	if (height < 8 || height > 1024 || (height & (height - 1)) != 0)
+		return TEXTURE_INVALID;
+
+	texture_cache_t& t = textures[num_textures];
+
+	t.tsp_instruction_word = tsp_instruction_word::texture_u_size::from_int(width) | tsp_instruction_word::texture_v_size::from_int(height);
+
+	t.texture_control_word = texture_control_word::texture_address(texture_address_next);
+
+	if (flags & TEXTURE_FLAG_TWIDDLED)
+	{
+		t.texture_control_word |= texture_control_word::scan_order::twiddled;
+	}
+	else
+	{
+		t.texture_control_word |= texture_control_word::scan_order::non_twiddled;
+	}
+	if (flags & TEXTURE_FLAG_VQ)
+	{
+		t.texture_control_word |= texture_control_word::vq_compressed;
+	}
+	if (flags & TEXTURE_FLAG_MM)
+	{
+		t.texture_control_word |= texture_control_word::mip_mapped;
+	}
+
+	switch (type)
+	{
+		case TEXTURE_TYPE_ARGB1555: t.texture_control_word |= texture_control_word::pixel_format::argb1555; break;
+		case TEXTURE_TYPE_RGB565: t.texture_control_word |= texture_control_word::pixel_format::rgb565; break;
+		case TEXTURE_TYPE_ARGB4444: t.texture_control_word |= texture_control_word::pixel_format::argb4444; break;
+	}
+
+	texture_address_next = transfer_texture(data, len, texture_address_next);
+
+	return num_textures++;
+}
+
+RUNTIME_EXTERN uint32_t texture_cache_pvr(const pvr_t *pvr)
+{
 	int error_code = PVR_ERROR_NONE;
 	pvr = pvr_validate(pvr, &error_code);
 	if (!pvr || error_code != PVR_ERROR_NONE)
 		return TEXTURE_INVALID;
 
-	texture_cache_t& t = textures[num_textures];
-
-	t.tsp_instruction_word = tsp_instruction_word::texture_u_size::from_int(pvr->width) | tsp_instruction_word::texture_v_size::from_int(pvr->height);
-
-	t.texture_control_word = texture_control_word::texture_address(texture_address_next);
+	uint32_t type = TEXTURE_TYPE_NONE;
+	uint32_t flags = TEXTURE_FLAG_NONE;
 
 	switch (PVR_GET_IMAGE_TYPE(pvr))
 	{
 		case PVR_IMAGE_TYPE_TWIDDLED:
-			t.texture_control_word |= texture_control_word::scan_order::twiddled;
+			flags |= TEXTURE_FLAG_TWIDDLED;
 			break;
 		case PVR_IMAGE_TYPE_TWIDDLED_MM:
-			t.texture_control_word |= texture_control_word::scan_order::twiddled | texture_control_word::mip_mapped;
+			flags |= TEXTURE_FLAG_TWIDDLED | TEXTURE_FLAG_MM;
 			break;
 		case PVR_IMAGE_TYPE_VQ:
-			t.texture_control_word |= texture_control_word::scan_order::twiddled | texture_control_word::vq_compressed;
+			flags |= TEXTURE_FLAG_TWIDDLED | TEXTURE_FLAG_VQ;
 			break;
 		case PVR_IMAGE_TYPE_VQ_MM:
-			t.texture_control_word |= texture_control_word::scan_order::twiddled | texture_control_word::vq_compressed | texture_control_word::mip_mapped;
+			flags |= TEXTURE_FLAG_TWIDDLED | TEXTURE_FLAG_VQ | TEXTURE_FLAG_MM;
 			break;
 		case PVR_IMAGE_TYPE_RECTANGULAR:
-			t.texture_control_word |= texture_control_word::scan_order::non_twiddled;
 			break;
 		case PVR_IMAGE_TYPE_RECTANGULAR_MM:
-			t.texture_control_word |= texture_control_word::scan_order::non_twiddled | texture_control_word::mip_mapped;
+			flags |= TEXTURE_FLAG_MM;
 			break;
 	}
 
 	switch (PVR_GET_PIXEL_TYPE(pvr))
 	{
-		case PVR_PIXEL_TYPE_ARGB1555: t.texture_control_word |= texture_control_word::pixel_format::argb1555; break;
-		case PVR_PIXEL_TYPE_RGB565: t.texture_control_word |= texture_control_word::pixel_format::rgb565; break;
-		case PVR_PIXEL_TYPE_ARGB4444: t.texture_control_word |= texture_control_word::pixel_format::argb4444; break;
+		case PVR_PIXEL_TYPE_ARGB1555: type = TEXTURE_TYPE_ARGB1555; break;
+		case PVR_PIXEL_TYPE_RGB565: type = TEXTURE_TYPE_RGB565; break;
+		case PVR_PIXEL_TYPE_ARGB4444: type = TEXTURE_TYPE_ARGB4444; break;
 	}
 
-	texture_address_next = transfer_pvr(pvr, texture_address_next);
-
-	return num_textures++;
+	return texture_cache_raw(pvr->width, pvr->height, type, flags, PVR_GET_PIXEL_DATA(pvr), PVR_GET_PIXEL_DATA_SIZE(pvr));
 }
 
 RUNTIME_EXTERN const texture_cache_t *texture_cache_get(uint32_t texture_index)
