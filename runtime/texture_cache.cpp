@@ -52,11 +52,11 @@ RUNTIME_EXTERN uint32_t texture_cache_raw(int width, int height, uint32_t type, 
 	if (height < 8 || height > 1024 || (height & (height - 1)) != 0)
 		return TEXTURE_INVALID;
 
-	texture_cache_t& t = textures[num_textures];
+	auto& t = textures[num_textures];
 
 	t.tsp_instruction_word = tsp_instruction_word::texture_u_size::from_int(width) | tsp_instruction_word::texture_v_size::from_int(height);
 
-	t.texture_control_word = texture_control_word::texture_address(texture_address_next);
+	t.texture_control_word = texture_control_word::texture_address(texture_address_next / 8);
 
 	if (flags & TEXTURE_FLAG_TWIDDLED)
 	{
@@ -66,10 +66,12 @@ RUNTIME_EXTERN uint32_t texture_cache_raw(int width, int height, uint32_t type, 
 	{
 		t.texture_control_word |= texture_control_word::scan_order::non_twiddled;
 	}
+
 	if (flags & TEXTURE_FLAG_VQ)
 	{
 		t.texture_control_word |= texture_control_word::vq_compressed;
 	}
+
 	if (flags & TEXTURE_FLAG_MM)
 	{
 		t.texture_control_word |= texture_control_word::mip_mapped;
