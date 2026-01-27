@@ -15,6 +15,44 @@
 #include "sh7091/pref.hpp"
 #include "sh7091/store_queue_transfer.hpp"
 
+enum {
+	TILE_DRAWFLAG_NONE = 0,
+	TILE_DRAWFLAG_NORTH = 1 << 0,
+	TILE_DRAWFLAG_SOUTH = 1 << 1,
+	TILE_DRAWFLAG_EAST = 1 << 2,
+	TILE_DRAWFLAG_WEST = 1 << 3,
+	TILE_DRAWFLAG_FLOOR = 1 << 4,
+	TILE_DRAWFLAG_CEILING = 1 << 5
+};
+
+#define TILE_WIDTH (64)
+#define TILE_HEIGHT (64)
+
+#define TILEMAP_WIDTH (8)
+#define TILEMAP_HEIGHT (8)
+
+typedef struct tile {
+	uint32_t texture_address;
+	uint16_t height;
+	uint16_t drawflags;
+} tile_t;
+
+static tile_t tilemap[TILEMAP_HEIGHT][TILEMAP_WIDTH];
+
+void construct_tilemap()
+{
+	for (int y = 0; y < TILEMAP_HEIGHT; y++)
+	{
+		for (int x = 0; x < TILEMAP_WIDTH; x++)
+		{
+			if (y == 0 || y == TILEMAP_HEIGHT - 1 || x == 0 || x == TILEMAP_WIDTH - 1)
+				tilemap[y][x] = tile_t{ 0x700000, 1, TILE_DRAWFLAG_NONE };
+			else
+				tilemap[y][x] = tile_t{ 0x700000, 0, TILE_DRAWFLAG_NONE };
+		}
+	}
+}
+
 void transfer_background_polygon(uint32_t isp_tsp_parameter_start)
 {
   using namespace holly::core::parameter;
@@ -179,9 +217,14 @@ struct vec3 {
   float z;
 };
 
-struct vec2 {
-  float u;
-  float v;
+union vec2 {
+  struct { float x, y; };
+  struct { float u, v; };
+};
+
+struct ivec2 {
+  int x;
+  int y;
 };
 
 static const vec3 cube_vertex_position[] = {
@@ -239,28 +282,8 @@ static const int cube_faces_length = (sizeof (cube_faces)) / (sizeof (cube_faces
 
 #define cos(n) __builtin_cosf(n)
 #define sin(n) __builtin_sinf(n)
-
-static float theta = 0;
-
-static inline vec3 vertex_rotate(vec3 v)
-{
-  // to make the cube's appearance more interesting, rotate the vertex on two
-  // axes
-
-  float x0 = v.x;
-  float y0 = v.y;
-  float z0 = v.z;
-
-  float x1 = x0 * cos(theta) - z0 * sin(theta);
-  float y1 = y0;
-  float z1 = x0 * sin(theta) + z0 * cos(theta);
-
-  float x2 = x1;
-  float y2 = y1 * cos(theta) - z1 * sin(theta);
-  float z2 = y1 * sin(theta) + z1 * cos(theta);
-
-  return (vec3){x2, y2, z2};
-}
+#define fabs(n) __builtin_fabsf(n)
+#define FLT_MAX __builtin_inff()
 
 static inline vec3 vertex_perspective_divide(vec3 v)
 {
@@ -299,15 +322,15 @@ void transfer_ta_cube(uint32_t texture_address)
 
     vec3 vpa = vertex_screen_space(
                  vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipa])));
+                   cube_vertex_position[ipa]));
 
     vec3 vpb = vertex_screen_space(
                  vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipb])));
+                   cube_vertex_position[ipb]));
 
     vec3 vpc = vertex_screen_space(
                  vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipc])));
+                   cube_vertex_position[ipc]));
 
     int ita = cube_faces[face_ix].a.texture;
     int itb = cube_faces[face_ix].b.texture;
@@ -329,6 +352,181 @@ void transfer_ta_cube(uint32_t texture_address)
   }
 
   store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
+}
+
+float fclamp(float i, float min, float max)
+{
+	return __builtin_fmin(__builtin_fmax(i, min), max);
+}
+
+typedef struct ray_hit {
+	vec2 ray_dir;
+	vec2 delta_dist;
+	vec2 side_dist;
+	ivec2 step;
+	ivec2 map_pos;
+	int side;
+} ray_hit_t;
+
+enum : int {
+	RAY_HIT_DONE = 0,
+	RAY_HIT_WALL = 1,
+	RAY_HIT_SKY = 2
+};
+
+static inline int ray_cast(ray_hit_t *hit)
+{
+	tile_t *tile = nullptr;
+
+	while (1)
+	{
+		if (hit->side_dist.x < hit->side_dist.y)
+		{
+			hit->side_dist.x += hit->delta_dist.x;
+			hit->map_pos.x += hit->step.x;
+			hit->side = 0;
+		}
+		else
+		{
+			hit->side_dist.y += hit->delta_dist.y;
+			hit->map_pos.y += hit->step.y;
+			hit->side = 1;
+		}
+
+		// out of bounds
+		if (hit->map_pos.y < 0 || hit->map_pos.y >= TILEMAP_HEIGHT)
+			return RAY_HIT_DONE;
+		if (hit->map_pos.x < 0 || hit->map_pos.x >= TILEMAP_WIDTH)
+			return RAY_HIT_DONE;
+
+		// get tile
+		tile = &tilemap[hit->map_pos.y][hit->map_pos.x];
+
+		// hit
+		if (tile->height > 0)
+		{
+			tile->drawflags |= TILE_DRAWFLAG_NORTH | TILE_DRAWFLAG_SOUTH | TILE_DRAWFLAG_EAST | TILE_DRAWFLAG_WEST;
+			return RAY_HIT_WALL;
+		}
+		else
+		{
+			tile->drawflags |= TILE_DRAWFLAG_FLOOR | TILE_DRAWFLAG_CEILING;
+		}
+
+		if (hit->map_pos.x == 0 || hit->map_pos.x == TILEMAP_WIDTH - 1)
+			return RAY_HIT_SKY;
+		if (hit->map_pos.y == 0 || hit->map_pos.y == TILEMAP_HEIGHT - 1)
+			return RAY_HIT_SKY;
+	}
+
+	return RAY_HIT_DONE;
+}
+
+static struct camera_t {
+	vec3 origin;
+	float yaw;
+	float yaw_cos;
+	float yaw_sin;
+	int horizon;
+} camera;
+
+void raycast_column(int x)
+{
+	vec2 temp;
+	ray_hit_t hit;
+	int hit_type;
+	float dist, dist2;
+	tile_t *tile;
+	int line_start, line_end;
+	int line_start_c, line_end_c;
+	float block_top, block_bottom;
+	float pixel_height_scale = 480.f / 1.5;
+
+	// get map pos
+	hit.map_pos.x = (int)camera.origin.x;
+	hit.map_pos.y = (int)camera.origin.y;
+
+	// get ray direction
+	hit.ray_dir.x = ((2.0f / (float)480) * (float)x) - 1.0f;
+	hit.ray_dir.y = 1.0f;
+
+	// rotate around (0, 0) by camera yaw
+	temp = hit.ray_dir;
+	hit.ray_dir.x = (-temp.x * camera.yaw_cos) - (-temp.y * camera.yaw_sin);
+	hit.ray_dir.y = (temp.x * camera.yaw_sin) + (temp.y * camera.yaw_cos);
+
+	// get delta of ray (prevent divide by 0)
+	hit.delta_dist.x = (hit.ray_dir.x == 0.0f) ? FLT_MAX : fabs(1.0f / hit.ray_dir.x);
+	hit.delta_dist.y = (hit.ray_dir.y == 0.0f) ? FLT_MAX : fabs(1.0f / hit.ray_dir.y);
+
+	// get step and initial side_dist
+	if (hit.ray_dir.x < 0)
+	{
+		hit.step.x = -1;
+		hit.side_dist.x = (camera.origin.x - (float)hit.map_pos.x) * hit.delta_dist.x;
+	}
+	else
+	{
+		hit.step.x = 1;
+		hit.side_dist.x = ((float)hit.map_pos.x + 1.0f - camera.origin.x) * hit.delta_dist.x;
+	}
+
+	if (hit.ray_dir.y < 0)
+	{
+		hit.step.y = -1;
+		hit.side_dist.y = (camera.origin.y - (float)hit.map_pos.y) * hit.delta_dist.y;
+	}
+	else
+	{
+		hit.step.y = 1;
+		hit.side_dist.y = ((float)hit.map_pos.y + 1.0f - camera.origin.y) * hit.delta_dist.y;
+	}
+
+	// do cast
+	while ((hit_type = ray_cast(&hit)) != RAY_HIT_DONE)
+	{
+		// get dist
+		if (!hit.side)
+		{
+			dist = hit.side_dist.x - hit.delta_dist.x;
+			dist2 = fclamp(hit.side_dist.y, dist, dist + hit.delta_dist.x);
+		}
+		else
+		{
+			dist = hit.side_dist.y - hit.delta_dist.y;
+			dist2 = fclamp(hit.side_dist.x, dist, dist + hit.delta_dist.y);
+		}
+
+		// get tile
+		tile = &tilemap[hit.map_pos.y][hit.map_pos.x];
+
+		// line heights
+		block_top = camera.origin.z - tile->height * 0.125f;
+		block_bottom = camera.origin.z;
+
+		// line start and end
+		line_start = ((block_top / dist) * pixel_height_scale) + camera.horizon;
+		line_end = ((block_bottom / dist) * pixel_height_scale) + camera.horizon;
+	}
+}
+
+void raycast()
+{
+	camera.yaw_sin = sin(camera.yaw);
+	camera.yaw_cos = cos(camera.yaw);
+
+	for (int y = 0; y < TILEMAP_HEIGHT; y++)
+	{
+		for (int x = 0; x < TILEMAP_WIDTH; x++)
+		{
+			tilemap[y][x].drawflags = TILE_DRAWFLAG_NONE;
+		}
+	}
+
+	for (int x = 0; x < 640; x++)
+	{
+		raycast_column(x);
+	}
 }
 
 const uint8_t texture[] __attribute__((aligned(4))) = {
@@ -479,41 +677,37 @@ void main()
   // framebuffer.
   holly.FB_R_SOF1 = framebuffer_start;
 
-  // draw 500 frames of cube rotation
-  for (int i = 0; i < 500; i++) {
-    //////////////////////////////////////////////////////////////////////////////
-    // transfer cube to texture memory via the TA polygon converter FIFO
-    //////////////////////////////////////////////////////////////////////////////
+	// draw 500 frames of cube rotation
+	while (1)
+	{
+		//////////////////////////////////////////////////////////////////////////////
+		// transfer cube to texture memory via the TA polygon converter FIFO
+		//////////////////////////////////////////////////////////////////////////////
 
-    // TA_LIST_INIT needs to be written (every frame) prior to the first FIFO
-    // write.
-    holly.TA_LIST_INIT = ta_list_init::list_init;
+		// TA_LIST_INIT needs to be written (every frame) prior to the first FIFO
+		// write.
+		holly.TA_LIST_INIT = ta_list_init::list_init;
 
-    // dummy TA_LIST_INIT read; DCDBSysArc990907E.pdf in multiple places says this
-    // step is required.
-    (void)holly.TA_LIST_INIT;
+		// dummy TA_LIST_INIT read; DCDBSysArc990907E.pdf in multiple places says this
+		// step is required.
+		(void)holly.TA_LIST_INIT;
 
-    transfer_ta_cube(texture_start);
+		raycast();
+		transfer_ta_cube(texture_start);
 
-    //////////////////////////////////////////////////////////////////////////////
-    // wait for vertical synchronization (and the TA)
-    //////////////////////////////////////////////////////////////////////////////
+		//////////////////////////////////////////////////////////////////////////////
+		// wait for vertical synchronization (and the TA)
+		//////////////////////////////////////////////////////////////////////////////
 
-    while (!(spg_status::vsync(holly.SPG_STATUS)));
-    while (spg_status::vsync(holly.SPG_STATUS));
+		while (!(spg_status::vsync(holly.SPG_STATUS)));
+		while (spg_status::vsync(holly.SPG_STATUS));
 
-    //////////////////////////////////////////////////////////////////////////////
-    // start the actual rasterization
-    //////////////////////////////////////////////////////////////////////////////
+		//////////////////////////////////////////////////////////////////////////////
+		// start the actual rasterization
+		//////////////////////////////////////////////////////////////////////////////
 
-    // start the actual render--the rendering process begins by interpreting the
-    // region array
-    holly.STARTRENDER = 1;
-
-    // increment theta for the cube rotation animation
-    // (used by the `vertex_rotate` function)
-    theta += 0.01f;
-  }
-
-  // return from main; this will effectively jump back to the serial loader
+		// start the actual render--the rendering process begins by interpreting the
+		// region array
+		holly.STARTRENDER = 1;
+	}
 }
