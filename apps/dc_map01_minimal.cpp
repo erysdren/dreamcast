@@ -265,9 +265,7 @@ static uint32_t r_num_visible_leafs = 0;
 static int32_t r_camera_cluster = -1;
 static int32_t r_camera_prev_cluster = -1;
 
-static struct camera_t {
-	vec3 origin;
-} r_camera;
+static camera_t r_camera;
 
 int32_t cluster_for_point(vec3 p)
 {

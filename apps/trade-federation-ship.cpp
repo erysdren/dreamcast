@@ -28,6 +28,8 @@
 static uint32_t r_ibsp_shader_textures[256];
 static uint32_t r_ibsp_lightmap_textures[256];
 
+static mat4 q3_world_matrix = {{0, -1, 0, 0}, {0, 0, 1, 0}, {-1, 0, 0, 0}, {0, 0, 0, 1}};
+
 void transfer_background_polygon(uint32_t isp_tsp_parameter_start)
 {
 	using namespace holly::core::parameter;
@@ -247,9 +249,7 @@ static uint32_t r_num_visible_leafs = 0;
 static int32_t r_camera_cluster = -1;
 static int32_t r_camera_prev_cluster = -1;
 
-static struct camera_t {
-	vec3 origin;
-} r_camera;
+static camera_t r_camera;
 
 ibsp_leaf& leaf_for_point(vec3 p)
 {
@@ -561,14 +561,20 @@ void main()
 	// framebuffer.
 	holly.FB_R_SOF1 = framebuffer_start;
 
+	mat4 model = GLM_MAT4_IDENTITY_INIT, viewproj, mvp;
+	camera_init(&r_camera);
+	glm_vec3_copy((vec3){0, 0, 64}, r_camera.origin);
+
+#if 0
 	mat4 model = GLM_MAT4_IDENTITY_INIT, proj, view = GLM_MAT4_IDENTITY_INIT, viewproj, mvp;
-	glm_vec3_copy((vec3){128, 0, 64}, r_camera.origin);
 	glm_lookat(r_camera.origin, (vec3){0, 0, 64}, (vec3){0, 0, -1}, view);
 	glm_perspective(45, 640.0f/480.0f, 1.0f, 1024.0f, proj);
 	glm_mat4_mul(proj, view, viewproj);
 	glm_mat4_mul(viewproj, model, mvp);
+#endif
 
 	// draw 500 frames of cube rotation
+	float theta = 0;
 	while (1)
 	{
 		// get camera cluster
@@ -588,6 +594,17 @@ void main()
 		// dummy TA_LIST_INIT read; DCDBSysArc990907E.pdf in multiple places says this
 		// step is required.
 		(void)holly.TA_LIST_INIT;
+
+		//////////////////////////////////////////////////////////////////////////////
+		// update camera matrix
+		//////////////////////////////////////////////////////////////////////////////
+
+		glm_vec3_copy((vec3){0, theta, 0}, r_camera.angles);
+
+		camera_make_viewproj(&r_camera, viewproj);
+		glm_mat4_mul(viewproj, model, mvp);
+
+		theta += 0.1f;
 
 		//////////////////////////////////////////////////////////////////////////////
 		// render models
