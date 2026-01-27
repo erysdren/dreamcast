@@ -52,6 +52,7 @@ size_t strlcat(char *dst, const char *src, size_t n);
 size_t strlcpy(char *dst, const char *src, size_t n);
 size_t strnlen(const char *s, size_t n);
 
+#define memcmp(a, b, n) __builtin_memcmp(a, b, n)
 void *memchr(const void *src, int c, size_t n);
 void *memset(void *dst, int c, size_t n);
 void *memcpy(void *dst, const void *src, size_t n);
