@@ -110,6 +110,9 @@ bool wildcmp(const char *wild, const char *string);
 #include "md3.h"
 #include "pvr.h"
 
+/* camera */
+#include "camera.h"
+
 #ifdef __cplusplus
 }
 #endif
