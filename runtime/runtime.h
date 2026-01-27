@@ -113,6 +113,10 @@ bool wildcmp(const char *wild, const char *string);
 /* camera */
 #include "camera.h"
 
+/* transfer */
+#include "texture_cache.h"
+#include "transfer.h"
+
 #ifdef __cplusplus
 }
 #endif
