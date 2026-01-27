@@ -60,6 +60,23 @@ char *strncat(char *dst, const char *src, size_t n)
 	return a;
 }
 
+void *memmove(void *dst, const void *src, size_t n)
+{
+	char *d = dst;
+	const char *s = src;
+
+	if (d==s) return d;
+	if ((uintptr_t)s-(uintptr_t)d-n <= -2*n) return memcpy(d, s, n);
+
+	if (d<s) {
+		for (; n; n--) *d++ = *s++;
+	} else {
+		while (n) n--, d[n] = s[n];
+	}
+
+	return dst;
+}
+
 void *memcpy(void *dst, const void *src, size_t n)
 {
 	uint8_t *d = dst;
