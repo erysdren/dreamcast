@@ -32,7 +32,7 @@ void transfer_background_polygon(uint32_t isp_tsp_parameter_start)
 
   polygon->texture_control_word = 0;
 
-  polygon->vertex[0].x =  0.0f;
+  polygon->vertex[0].x=  0.0f;
   polygon->vertex[0].y =  0.0f;
   polygon->vertex[0].z =  0.00001f;
   polygon->vertex[0].base_color = 0xff00ff;
@@ -158,7 +158,7 @@ static inline uint32_t transfer_ta_vertex_triangle(uint32_t store_queue_ix,
   vertex[2].y = cy;
   vertex[2].z = cz;
   vertex[2].u = cu;
-  vertex[2].v = cv;
+  vertex[2].z = cv;
   vertex[2].base_color = cc;
   vertex[2].offset_color = 0;
 
@@ -172,18 +172,8 @@ static inline uint32_t transfer_ta_vertex_triangle(uint32_t store_queue_ix,
   These vertex and face definitions are a trivial transformation of the default
   Blender cube, as exported by the .obj exporter (with triangulation enabled).
  */
-struct vec3 {
-  float x;
-  float y;
-  float z;
-};
 
-struct vec2 {
-  float u;
-  float v;
-};
-
-static const vec3 cube_vertex_position[] = {
+static vec3 cube_vertex_position[] = {
   {  1.0f,  1.0f, -1.0f },
   {  1.0f, -1.0f, -1.0f },
   {  1.0f,  1.0f,  1.0f },
@@ -194,7 +184,7 @@ static const vec3 cube_vertex_position[] = {
   { -1.0f, -1.0f,  1.0f },
 };
 
-static const vec2 cube_vertex_texture[] = {
+static vec2 cube_vertex_texture[] = {
   { 1.0f, 0.0f },
   { 0.0f, 1.0f },
   { 0.0f, 0.0f },
@@ -241,14 +231,14 @@ static const int cube_faces_length = (sizeof (cube_faces)) / (sizeof (cube_faces
 
 static float theta = 0;
 
-static inline vec3 vertex_rotate(vec3 v)
+static inline void vertex_rotate(vec3 v)
 {
   // to make the cube's appearance more interesting, rotate the vertex on two
   // axes
 
-  float x0 = v.x;
-  float y0 = v.y;
-  float z0 = v.z;
+  float x0 = v[0];
+  float y0 = v[1];
+  float z0 = v[2];
 
   float x1 = x0 * cos(theta) - z0 * sin(theta);
   float y1 = y0;
@@ -258,22 +248,23 @@ static inline vec3 vertex_rotate(vec3 v)
   float y2 = y1 * cos(theta) - z1 * sin(theta);
   float z2 = y1 * sin(theta) + z1 * cos(theta);
 
-  return (vec3){x2, y2, z2};
+  v[0] = x2;
+  v[1] = y2;
+  v[2] = z2;
 }
 
-static inline vec3 vertex_perspective_divide(vec3 v)
+static inline void vertex_perspective_divide(vec3 v)
 {
-  float w = 1.0f / (v.z + 3.0f);
-  return (vec3){v.x * w, v.y * w, w};
+  float w = 1.0f / (v[2] + 3.0f);
+  v[0] = v[0] * w;
+  v[1] = v[1] * w;
+  v[2] = w;
 }
 
-static inline vec3 vertex_screen_space(vec3 v)
+static inline void vertex_screen_space(vec3 v)
 {
-  return (vec3){
-    v.x * 240.f + 320.f,
-    v.y * 240.f + 240.f,
-    v.z,
-  };
+	v[0] = v[0] * 240.f + 320.f;
+	v[1] = v[1] * 240.f + 240.f;
 }
 
 void transfer_ta_cube(uint32_t texture_address)
@@ -296,25 +287,32 @@ void transfer_ta_cube(uint32_t texture_address)
     int ipb = cube_faces[face_ix].b.position;
     int ipc = cube_faces[face_ix].c.position;
 
-    vec3 vpa = vertex_screen_space(
-                 vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipa])));
+	vec3 vpa, vpb, vpc;
+	vec2 vta, vtb, vtc;
 
-    vec3 vpb = vertex_screen_space(
-                 vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipb])));
+	glm_vec3_copy(cube_vertex_position[ipa], vpa);
+	glm_vec3_copy(cube_vertex_position[ipb], vpb);
+	glm_vec3_copy(cube_vertex_position[ipc], vpc);
 
-    vec3 vpc = vertex_screen_space(
-                 vertex_perspective_divide(
-                   vertex_rotate(cube_vertex_position[ipc])));
+	vertex_rotate(vpa);
+	vertex_rotate(vpb);
+	vertex_rotate(vpc);
+
+	vertex_perspective_divide(vpa);
+	vertex_perspective_divide(vpb);
+	vertex_perspective_divide(vpc);
+
+	vertex_screen_space(vpa);
+	vertex_screen_space(vpb);
+	vertex_screen_space(vpc);
 
     int ita = cube_faces[face_ix].a.texture;
     int itb = cube_faces[face_ix].b.texture;
     int itc = cube_faces[face_ix].c.texture;
 
-    vec2 vta = cube_vertex_texture[ita];
-    vec2 vtb = cube_vertex_texture[itb];
-    vec2 vtc = cube_vertex_texture[itc];
+	glm_vec2_copy(cube_vertex_texture[ita], vta);
+	glm_vec2_copy(cube_vertex_texture[itb], vtb);
+	glm_vec2_copy(cube_vertex_texture[itc], vtc);
 
     // vertex color is irrelevant in "decal" mode
     uint32_t va_color = 0;
@@ -322,9 +320,9 @@ void transfer_ta_cube(uint32_t texture_address)
     uint32_t vc_color = 0;
 
     store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
-                                                 vpa.x, vpa.y, vpa.z, vta.u, vta.v, va_color,
-                                                 vpb.x, vpb.y, vpb.z, vtb.u, vtb.v, vb_color,
-                                                 vpc.x, vpc.y, vpc.z, vtc.u, vtc.v, vc_color);
+                                                 vpa[0], vpa[1], vpa[2], vta[0], vta[1], va_color,
+                                                 vpb[0], vpb[1], vpb[2], vtb[0], vtb[1], vb_color,
+                                                 vpc[0], vpc[1], vpc[2], vtc[0], vtc[1], vc_color);
   }
 
   store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);

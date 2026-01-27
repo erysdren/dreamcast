@@ -3,7 +3,7 @@
 
 #include "runtime.h"
 
-RUNTIME_EXTERN void print_char(const char c)
+void print_char(const char c)
 {
 	using namespace sh7091::scif;
 	// wait for transmit fifo to become partially empty

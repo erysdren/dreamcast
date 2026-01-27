@@ -5,7 +5,6 @@
 
 #include "parse.h"
 #include "unparse.h"
-#include "utils.h"
 
 enum format_type {
   FORMAT_BASE10_UNSIGNED,

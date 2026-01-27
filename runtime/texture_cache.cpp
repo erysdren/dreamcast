@@ -20,7 +20,7 @@ static texture_cache_t textures[MAX_TEXTURES];
 static size_t num_textures = 0;
 static uint32_t texture_address_next = TEXTURE_INVALID;
 
-RUNTIME_EXTERN void texture_cache_init(uint32_t texture_address)
+void texture_cache_init(uint32_t texture_address)
 {
 	texture_address_next = texture_address;
 	num_textures = 0;
@@ -32,7 +32,7 @@ static uint32_t transfer_texture(const void *data, size_t len, uint32_t texture_
 	return texture_address + len;
 }
 
-RUNTIME_EXTERN uint32_t texture_cache_raw(int width, int height, uint32_t type, uint32_t flags, const void *data, size_t len)
+uint32_t texture_cache_raw(int width, int height, uint32_t type, uint32_t flags, const void *data, size_t len)
 {
 	using namespace holly::core::parameter;
 	using namespace holly::ta;
@@ -89,7 +89,7 @@ RUNTIME_EXTERN uint32_t texture_cache_raw(int width, int height, uint32_t type, 
 	return num_textures++;
 }
 
-RUNTIME_EXTERN uint32_t texture_cache_pvr(const pvr_t *pvr)
+uint32_t texture_cache_pvr(const pvr_t *pvr)
 {
 	int error_code = PVR_ERROR_NONE;
 	pvr = pvr_validate(pvr, &error_code);
@@ -130,7 +130,7 @@ RUNTIME_EXTERN uint32_t texture_cache_pvr(const pvr_t *pvr)
 	return texture_cache_raw(pvr->width, pvr->height, type, flags, PVR_GET_PIXEL_DATA(pvr), PVR_GET_PIXEL_DATA_SIZE(pvr));
 }
 
-RUNTIME_EXTERN const texture_cache_t *texture_cache_get(uint32_t texture_index)
+const texture_cache_t *texture_cache_get(uint32_t texture_index)
 {
 	if (texture_index == TEXTURE_INVALID || texture_index >= num_textures)
 		return NULL;

@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "utils.h"
+#include "runtime.h"
 
 #ifndef ROMFS_SOURCE_FILENAME
 #error
