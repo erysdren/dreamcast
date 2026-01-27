@@ -1,6 +1,11 @@
 
 #include "runtime.h"
 
+float tanf(float radians)
+{
+	return sinf(radians) / cosf(radians);
+}
+
 void *memchr(const void *src, int c, size_t n)
 {
 	const uint8_t *s = src;
