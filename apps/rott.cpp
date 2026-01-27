@@ -31,6 +31,9 @@ enum {
 #define TILEMAP_WIDTH (8)
 #define TILEMAP_HEIGHT (8)
 
+#define SCREEN_WIDTH (640)
+#define SCREEN_HEIGHT (480)
+
 typedef struct tile {
 	uint32_t texture_address;
 	uint16_t height;
@@ -145,6 +148,74 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint3
 
   // start store queue transfer of `polygon` to the TA
   pref(polygon);
+
+  return store_queue_ix;
+}
+
+static inline uint32_t transfer_ta_vertex_quad(uint32_t store_queue_ix,
+                                               float ax, float ay, float az, float au, float av, uint32_t ac,
+                                               float bx, float by, float bz, float bu, float bv, uint32_t bc,
+                                               float cx, float cy, float cz, float cu, float cv, uint32_t cc,
+                                               float dx, float dy, float dz, float du, float dv, uint32_t dc)
+{
+  using namespace holly::ta;
+  using namespace holly::ta::parameter;
+
+  //
+  // TA polygon vertex transfer
+  //
+
+  volatile vertex_parameter::polygon_type_3 * vertex = (volatile vertex_parameter::polygon_type_3 *)&store_queue[store_queue_ix];
+  store_queue_ix += (sizeof (vertex_parameter::polygon_type_3)) * 4;
+
+  vertex[0].parameter_control_word = parameter_control_word::para_type::vertex_parameter;
+  vertex[0].x = ax;
+  vertex[0].y = ay;
+  vertex[0].z = az;
+  vertex[0].u = au;
+  vertex[0].v = av;
+  vertex[0].base_color = ac;
+  vertex[0].offset_color = 0;
+
+  // start store queue transfer of `vertex[0]` to the TA
+  pref(&vertex[0]);
+
+  vertex[1].parameter_control_word = parameter_control_word::para_type::vertex_parameter;
+  vertex[1].x = bx;
+  vertex[1].y = by;
+  vertex[1].z = bz;
+  vertex[1].u = bu;
+  vertex[1].v = bv;
+  vertex[1].base_color = bc;
+  vertex[1].offset_color = 0;
+
+  // start store queue transfer of `vertex[1]` to the TA
+  pref(&vertex[1]);
+
+  vertex[2].parameter_control_word = parameter_control_word::para_type::vertex_parameter;
+  vertex[2].x = dx;
+  vertex[2].y = dy;
+  vertex[2].z = dz;
+  vertex[2].u = du;
+  vertex[2].v = dv;
+  vertex[2].base_color = dc;
+  vertex[2].offset_color = 0;
+
+  // start store queue transfer of `params[2]` to the TA
+  pref(&vertex[2]);
+
+  vertex[3].parameter_control_word = parameter_control_word::para_type::vertex_parameter
+                                   | parameter_control_word::end_of_strip;
+  vertex[3].x = cx;
+  vertex[3].y = cy;
+  vertex[3].z = cz;
+  vertex[3].u = cu;
+  vertex[3].v = cv;
+  vertex[3].base_color = cc;
+  vertex[3].offset_color = 0;
+
+  // start store queue transfer of `params[3]` to the TA
+  pref(&vertex[3]);
 
   return store_queue_ix;
 }
@@ -359,6 +430,21 @@ float fclamp(float i, float min, float max)
 	return __builtin_fmin(__builtin_fmax(i, min), max);
 }
 
+int imin(int a, int b)
+{
+	return a < b ? a : b;
+}
+
+int imax(int a, int b)
+{
+	return a > b ? a : b;
+}
+
+int iclamp(int i, int min, int max)
+{
+	return imin(imax(i, min), max);
+}
+
 typedef struct ray_hit {
 	vec2 ray_dir;
 	vec2 delta_dist;
@@ -440,7 +526,9 @@ void raycast_column(int x)
 	int line_start, line_end;
 	int line_start_c, line_end_c;
 	float block_top, block_bottom;
-	float pixel_height_scale = 480.f / 1.5;
+	float pixel_height_scale = SCREEN_HEIGHT / 1.5;
+	int w;
+	int ystart = SCREEN_HEIGHT;
 
 	// get map pos
 	hit.map_pos.x = (int)camera.origin.x;
@@ -485,6 +573,10 @@ void raycast_column(int x)
 	// do cast
 	while ((hit_type = ray_cast(&hit)) != RAY_HIT_DONE)
 	{
+		// early out
+		if (!ystart)
+			break;
+
 		// get dist
 		if (!hit.side)
 		{
@@ -507,6 +599,43 @@ void raycast_column(int x)
 		// line start and end
 		line_start = ((block_top / dist) * pixel_height_scale) + camera.horizon;
 		line_end = ((block_bottom / dist) * pixel_height_scale) + camera.horizon;
+
+		// clamp to screen resolution
+		line_start_c = iclamp(line_start, 0, ystart);
+		line_end_c = iclamp(line_end, 0, ystart);
+
+		if (tile->height > 0)
+		{
+			float wall_x;
+
+			// get wall impact point
+			if (!hit.side)
+				wall_x = camera.origin.y + dist * hit.ray_dir.y;
+			else
+				wall_x = camera.origin.x + dist * hit.ray_dir.x;
+
+			wall_x -= __builtin_floorf(wall_x);
+
+			uint32_t store_queue_ix = 0;
+
+			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, 0x700000);
+
+			vec3 vpa = (vec3){x, line_start_c, 0};
+			vec3 vpb = (vec3){x, line_end_c, 0};
+			vec3 vpc = (vec3){x + 1, line_start_c, 0};
+			vec3 vpd = (vec3){x + 1, line_end_c, 0};
+
+			vec2 vta = (vec2){};
+			vec2 vtb = (vec2){};
+			vec2 vtc = (vec2){};
+			vec2 vtd = (vec2){};
+
+			store_queue_ix = transfer_ta_vertex_quad(store_queue_ix,
+														vpa.x, vpa.y, vpa.z, vta.u, vta.v, 0,
+														vpb.x, vpb.y, vpb.z, vtb.u, vtb.v, 0,
+														vpc.x, vpc.y, vpc.z, vtc.u, vtc.v, 0,
+														vpd.x, vpd.y, vpd.z, vtd.u, vtd.v, 0);
+		}
 	}
 }
 
@@ -523,7 +652,7 @@ void raycast()
 		}
 	}
 
-	for (int x = 0; x < 640; x++)
+	for (int x = 0; x < SCREEN_WIDTH; x++)
 	{
 		raycast_column(x);
 	}
