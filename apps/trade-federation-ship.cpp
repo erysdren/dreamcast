@@ -574,15 +574,15 @@ void main()
 	glm_vec3_copy((vec3){-32, -32, -64}, pmove.mins);
 	glm_vec3_copy((vec3){32, 32, 8}, pmove.maxs);
 
-	pmove.cmd.forwardmove = -50;
+	pmove.cmd.forwardmove = 0;
 	pmove.cmd.sidemove = 0;
 	pmove.cmd.upmove = 0;
 
 	pmove_vars.gravity = 300;
 	pmove_vars.stopspeed = 1;
-	pmove_vars.maxspeed = 150;
-	pmove_vars.accelerate = -1;
-	pmove_vars.friction = 1;
+	pmove_vars.maxspeed = 300;
+	pmove_vars.accelerate = 10;
+	pmove_vars.friction = 10;
 	pmove_vars.entgravity = 1;
 
 #if 0
@@ -620,17 +620,31 @@ void main()
 		}
 		else
 		{
+#if 0
 			printf("maple_data.digital_button: 0x%04x\n", maple_data.digital_button);
 			for (int i = 0; i < 6; i++)
 				printf("maple_data.analog_coordinate_axis[%d]: %d\n", i, maple_data.analog_coordinate_axis[i]);
 			print_char('\n');
+#endif
+
+			if (!(maple_data.digital_button & (1 << 7)))
+				r_camera.angles[1] += 2;
+			else if (!(maple_data.digital_button & (1 << 6)))
+				r_camera.angles[1] -= 2;
+
+			if (!(maple_data.digital_button & (1 << 4)))
+				pmove.cmd.forwardmove = 100;
+			else if (!(maple_data.digital_button & (1 << 5)))
+				pmove.cmd.forwardmove = -100;
+			else
+				pmove.cmd.forwardmove = 0;
 		}
 
 		//////////////////////////////////////////////////////////////////////////////
 		// update camera matrix
 		//////////////////////////////////////////////////////////////////////////////
 
-		r_camera.angles[1] += 0.1f;
+		// r_camera.angles[1] += 0.1f;
 
 		camera_make_viewproj(&r_camera, viewproj);
 		glm_mat4_mul(viewproj, model, mvp);
