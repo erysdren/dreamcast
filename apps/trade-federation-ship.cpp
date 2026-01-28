@@ -24,6 +24,7 @@
 #include "pvr.h"
 #include "ibsp.h"
 #include "texture_cache.h"
+#include "maple.h"
 
 static uint32_t r_ibsp_shader_textures[256];
 static uint32_t r_ibsp_lightmap_textures[256];
@@ -357,11 +358,17 @@ uint32_t mark_visible_leafs(int32_t cluster)
 
 #include "cube.h"
 
-static void transfer_cube(vec3 origin, float size, mat4 viewproj)
+static void transfer_cube(vec3 origin, vec3 angles, float halfsize, mat4 viewproj)
 {
 	mat4 mvp;
 
 	glm_translate_to(viewproj, origin, mvp);
+
+#if 0
+	glm_rotated(mvp, glm_rad(angles[1]), (vec3){0, 0, 1});
+	glm_rotated(mvp, glm_rad(-angles[0]), (vec3){0, 1, 0});
+	glm_rotated(mvp, glm_rad(-angles[2]), (vec3){1, 0, 0});
+#endif
 
 	uint32_t store_queue_ix = 0;
 
@@ -375,7 +382,7 @@ static void transfer_cube(vec3 origin, float size, mat4 viewproj)
 		for (int j = 0; j < 3; j++)
 		{
 			vc[j] = cube_vertex_color[cube_faces[i][j]];
-			glm_vec3_scale(cube_vertex_position[cube_faces[i][j]], size, vp[j]);
+			glm_vec3_scale(cube_vertex_position[cube_faces[i][j]], halfsize, vp[j]);
 			glm_mat4_mulv3(mvp, vp[j], 1.0f, vp[j]);
 			vertex_perspective_divide(vp[j]);
 			vertex_screen_space(vp[j]);
@@ -528,6 +535,12 @@ void main()
 	transfer_init();
 
 	//////////////////////////////////////////////////////////////////////////////
+	// initialize maple unit
+	//////////////////////////////////////////////////////////////////////////////
+
+	maple_init();
+
+	//////////////////////////////////////////////////////////////////////////////
 	// load bsp data
 	//////////////////////////////////////////////////////////////////////////////
 
@@ -547,10 +560,30 @@ void main()
 
 	mat4 model = GLM_MAT4_IDENTITY_INIT, viewproj, mvp;
 	camera_init(&r_camera);
-	glm_vec3_copy((vec3){0, 0, 64}, r_camera.origin);
+	glm_vec3_copy((vec3){0, 0, 72}, r_camera.origin);
 
-	vec3 velocity;
-	glm_vec3_zero(velocity);
+	ibsp_pmove_vars_t pmove_vars;
+	ibsp_pmove_t pmove;
+
+	pmove.dead = false;
+	pmove.onground = false;
+
+	glm_vec3_copy(r_camera.origin, pmove.origin);
+	glm_vec3_copy(r_camera.angles, pmove.angles);
+	glm_vec3_zero(pmove.velocity);
+	glm_vec3_copy((vec3){-32, -32, -64}, pmove.mins);
+	glm_vec3_copy((vec3){32, 32, 8}, pmove.maxs);
+
+	pmove.cmd.forwardmove = -50;
+	pmove.cmd.sidemove = 0;
+	pmove.cmd.upmove = 0;
+
+	pmove_vars.gravity = 300;
+	pmove_vars.stopspeed = 1;
+	pmove_vars.maxspeed = 150;
+	pmove_vars.accelerate = -1;
+	pmove_vars.friction = 1;
+	pmove_vars.entgravity = 1;
 
 #if 0
 	mat4 model = GLM_MAT4_IDENTITY_INIT, proj, view = GLM_MAT4_IDENTITY_INIT, viewproj, mvp;
@@ -560,7 +593,6 @@ void main()
 	glm_mat4_mul(viewproj, model, mvp);
 #endif
 
-	float theta = 0;
 	while (1)
 	{
 		//////////////////////////////////////////////////////////////////////////////
@@ -578,16 +610,42 @@ void main()
 		}
 
 		//////////////////////////////////////////////////////////////////////////////
+		// maple
+		//////////////////////////////////////////////////////////////////////////////
+
+		maple_ft0_data_t maple_data;
+		if (!maple_read_ft0(&maple_data, 0))
+		{
+			printf("maple read on port 0 failed!\n");
+		}
+		else
+		{
+			printf("maple_data.digital_button: 0x%04x\n", maple_data.digital_button);
+			for (int i = 0; i < 6; i++)
+				printf("maple_data.analog_coordinate_axis[%d]: %d\n", i, maple_data.analog_coordinate_axis[i]);
+			print_char('\n');
+		}
+
+		//////////////////////////////////////////////////////////////////////////////
 		// update camera matrix
 		//////////////////////////////////////////////////////////////////////////////
 
-		glm_vec3_copy((vec3){0, theta, 0}, r_camera.angles);
+		r_camera.angles[1] += 0.1f;
 
 		camera_make_viewproj(&r_camera, viewproj);
 		glm_mat4_mul(viewproj, model, mvp);
 
-		theta += 0.1f;
+		//////////////////////////////////////////////////////////////////////////////
+		// physics
+		//////////////////////////////////////////////////////////////////////////////
 
+		glm_vec3_copy(r_camera.angles, pmove.angles);
+
+		ibsp_pmove(&ibsp, &pmove, &pmove_vars, 0.01f);
+
+		glm_vec3_copy(pmove.origin, r_camera.origin);
+
+#if 0
 		//////////////////////////////////////////////////////////////////////////////
 		// physics
 		//////////////////////////////////////////////////////////////////////////////
@@ -624,6 +682,7 @@ void main()
 		}
 
 		glm_vec3_copy(trace.end, r_camera.origin);
+#endif
 
 #if 0
 		//////////////////////////////////////////////////////////////////////////////
@@ -659,7 +718,7 @@ void main()
 		// render models
 		//////////////////////////////////////////////////////////////////////////////
 
-		// transfer_cube(trace.end, 16, viewproj);
+		// transfer_cube(trace.end, r_camera.angles, 16, viewproj);
 		transfer_ibsp(mvp);
 
 		//////////////////////////////////////////////////////////////////////////////
