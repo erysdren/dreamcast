@@ -7,7 +7,7 @@ void camera_init(camera_t *camera)
 	glm_vec3_zero(camera->origin);
 	glm_vec3_zero(camera->angles);
 
-	glm_vec3_copy(GLM_ZUP, camera->up);
+	glm_vec3_copy((vec3){0, 0, -1}, camera->up);
 
 	camera->aspect = 640.0f/480.0f;
 	camera->near = 0.1f;
