@@ -109,6 +109,7 @@ void makevectors(const vec3 angles, vec3 forward, vec3 right, vec3 up);
 /* file formats */
 #include "ibsp.h"
 #include "ibsp_trace.h"
+#include "ibsp_pmove.h"
 #include "iqm.h"
 #include "md3.h"
 #include "pvr.h"
