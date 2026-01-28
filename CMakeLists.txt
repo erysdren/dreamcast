@@ -41,6 +41,7 @@ target_compile_options(runtime INTERFACE
 	$<$<COMPILE_LANGUAGE:C,CXX>:-ml>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-ffreestanding>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-nostdlib>
+	$<$<COMPILE_LANGUAGE:C,CXX>:-g>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-Og>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-ffunction-sections>
 	$<$<COMPILE_LANGUAGE:C,CXX>:-fdata-sections>

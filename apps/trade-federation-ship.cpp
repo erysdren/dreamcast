@@ -26,6 +26,8 @@
 #include "texture_cache.h"
 #include "maple.h"
 
+#include "interrupt.cpp"
+
 static uint32_t r_ibsp_shader_textures[256];
 static uint32_t r_ibsp_lightmap_textures[256];
 
@@ -75,15 +77,14 @@ static inline uint32_t transfer_ta_global_polygon_lightmap(uint32_t store_queue_
 	// because `gouraud` is one of the bits overwritten by the value in
 	// parameter_control_word. See DCDBSysArc990907E.pdf page 200.
 
+	const auto* t = texture_cache_get(texture_index);
+
 	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::other_color
 									| tsp_instruction_word::dst_alpha_instr::zero
 									| tsp_instruction_word::fog_control::no_fog
 									| tsp_instruction_word::filter_mode::bilinear_filter
-									| tsp_instruction_word::texture_shading_instruction::decal;
-
-	const auto* t = texture_cache_get(texture_index);
-
-	polygon->tsp_instruction_word |= t->tsp_instruction_word;
+									| tsp_instruction_word::texture_shading_instruction::decal
+									| t->tsp_instruction_word;
 
 	polygon->texture_control_word = t->texture_control_word;
 
@@ -118,15 +119,14 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint3
 	// because `gouraud` is one of the bits overwritten by the value in
 	// parameter_control_word. See DCDBSysArc990907E.pdf page 200.
 
+	const auto* t = texture_cache_get(texture_index);
+
 	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
 									| tsp_instruction_word::dst_alpha_instr::zero
 									| tsp_instruction_word::fog_control::no_fog
 									| tsp_instruction_word::filter_mode::bilinear_filter
-									| tsp_instruction_word::texture_shading_instruction::decal;
-
-	const auto* t = texture_cache_get(texture_index);
-
-	polygon->tsp_instruction_word |= t->tsp_instruction_word;
+									| tsp_instruction_word::texture_shading_instruction::decal
+									| t->tsp_instruction_word;
 
 	polygon->texture_control_word = t->texture_control_word;
 
@@ -526,7 +526,7 @@ static void transfer_lightmaps()
 	}
 }
 
-void main()
+void realmain()
 {
 	//////////////////////////////////////////////////////////////////////////////
 	// initialize holly graphics units
