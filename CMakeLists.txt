@@ -24,6 +24,7 @@ target_sources(runtime INTERFACE
 	${PROJECT_SOURCE_DIR}/runtime/printf/parse.c
 	${PROJECT_SOURCE_DIR}/runtime/tinyalloc/tinyalloc.c
 	${PROJECT_SOURCE_DIR}/runtime/ibsp.c
+	${PROJECT_SOURCE_DIR}/runtime/ibsp_trace.c
 	${PROJECT_SOURCE_DIR}/runtime/pvr.c
 	${PROJECT_SOURCE_DIR}/runtime/utils.c
 	${PROJECT_SOURCE_DIR}/runtime/camera.c
