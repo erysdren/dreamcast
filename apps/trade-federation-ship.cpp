@@ -549,6 +549,9 @@ void main()
 	camera_init(&r_camera);
 	glm_vec3_copy((vec3){0, 0, 64}, r_camera.origin);
 
+	vec3 velocity;
+	glm_vec3_zero(velocity);
+
 #if 0
 	mat4 model = GLM_MAT4_IDENTITY_INIT, proj, view = GLM_MAT4_IDENTITY_INIT, viewproj, mvp;
 	glm_lookat(r_camera.origin, (vec3){0, 0, 64}, (vec3){0, 0, -1}, view);
@@ -586,6 +589,44 @@ void main()
 		theta += 0.1f;
 
 		//////////////////////////////////////////////////////////////////////////////
+		// physics
+		//////////////////////////////////////////////////////////////////////////////
+
+		// get direction vectors
+		vec3 v_forward, v_right, v_up;
+		makevectors(r_camera.angles, v_forward, v_right, v_up);
+
+		// create acceleration vector
+		vec3 accel;
+		glm_vec3_scale(v_forward, 6, accel);
+
+		// apply gravity
+		// accel[2] -= 300;
+
+		// do world collision
+		float friction = 1;
+		ibsp_trace_t trace;
+		float dt = 0.01f;
+		glm_vec3_muladds(accel, dt, velocity);
+		glm_vec3_copy(r_camera.origin, trace.end);
+		for (int bump = 0; bump < 3; bump++)
+		{
+			vec3 p, temp;
+			glm_vec3_scale(velocity, dt, p);
+			glm_vec3_add(trace.end, p, p);
+			ibsp_trace(&ibsp, &trace, trace.end, p, (vec3){-32, -32, -36}, (vec3){32, 32, 36});
+			if (trace.fraction == 1.0f)
+				break;
+			glm_vec3_mulsubs(trace.plane, glm_vec3_dot(velocity, trace.plane), velocity);
+			glm_vec3_scale(velocity, friction, temp);
+			glm_vec3_mulsubs(temp, dt, velocity);
+			dt *= 1.0f - trace.fraction;
+		}
+
+		glm_vec3_copy(trace.end, r_camera.origin);
+
+#if 0
+		//////////////////////////////////////////////////////////////////////////////
 		// test trace
 		//////////////////////////////////////////////////////////////////////////////
 
@@ -599,6 +640,7 @@ void main()
 
 		ibsp_trace_t trace;
 		ibsp_trace(&ibsp, &trace, start, end, (vec3){-16, -16, -16}, (vec3){16, 16, 16});
+#endif
 
 #if 0
 		printf("r_camera.origin: %f %f %f\n", r_camera.origin[0], r_camera.origin[1], r_camera.origin[2]);
@@ -617,7 +659,7 @@ void main()
 		// render models
 		//////////////////////////////////////////////////////////////////////////////
 
-		transfer_cube(trace.end, 16, viewproj);
+		// transfer_cube(trace.end, 16, viewproj);
 		transfer_ibsp(mvp);
 
 		//////////////////////////////////////////////////////////////////////////////
