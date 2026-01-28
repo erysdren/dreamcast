@@ -135,6 +135,91 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint3
 	return store_queue_ix;
 }
 
+static inline uint32_t transfer_ta_global_polygon_untextured(uint32_t store_queue_ix)
+{
+	using namespace holly::core::parameter;
+	using namespace holly::ta;
+	using namespace holly::ta::parameter;
+
+	//
+	// TA polygon global transfer
+	//
+
+	volatile global_parameter::polygon_type_0 * polygon = (volatile global_parameter::polygon_type_0 *)&store_queue[store_queue_ix];
+	store_queue_ix += (sizeof (global_parameter::polygon_type_0));
+
+	polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
+									| parameter_control_word::list_type::translucent
+									| parameter_control_word::col_type::packed_color
+									| parameter_control_word::gouraud;
+
+	polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::greater
+										| isp_tsp_instruction_word::culling_mode::no_culling;
+	// Note that it is not possible to use
+	// ISP_TSP_INSTRUCTION_WORD::GOURAUD_SHADING in this isp_tsp_instruction_word,
+	// because `gouraud` is one of the bits overwritten by the value in
+	// parameter_control_word. See DCDBSysArc990907E.pdf page 200.
+
+	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
+									| tsp_instruction_word::dst_alpha_instr::zero
+									| tsp_instruction_word::fog_control::no_fog;
+
+	polygon->texture_control_word = 0;
+
+	// start store queue transfer of `polygon` to the TA
+	pref(polygon);
+
+	return store_queue_ix;
+}
+
+static inline uint32_t transfer_ta_vertex_triangle_untextured(uint32_t store_queue_ix,
+                                                   float ax, float ay, float az, uint32_t ac,
+                                                   float bx, float by, float bz, uint32_t bc,
+                                                   float cx, float cy, float cz, uint32_t cc)
+{
+	using namespace holly::ta;
+	using namespace holly::ta::parameter;
+
+	//
+	// TA polygon vertex transfer
+	//
+
+	volatile vertex_parameter::polygon_type_0 * vertex = (volatile vertex_parameter::polygon_type_0 *)&store_queue[store_queue_ix];
+	store_queue_ix += (sizeof (vertex_parameter::polygon_type_0)) * 3;
+
+	// bottom left
+	vertex[0].parameter_control_word = parameter_control_word::para_type::vertex_parameter;
+	vertex[0].x = ax;
+	vertex[0].y = ay;
+	vertex[0].z = az;
+	vertex[0].base_color = ac;
+
+	// start store queue transfer of `vertex[0]` to the TA
+	pref(&vertex[0]);
+
+	// top center
+	vertex[1].parameter_control_word = parameter_control_word::para_type::vertex_parameter;
+	vertex[1].x = bx;
+	vertex[1].y = by;
+	vertex[1].z = bz;
+	vertex[1].base_color = bc;
+
+	// start store queue transfer of `vertex[1]` to the TA
+	pref(&vertex[1]);
+
+	// bottom right
+	vertex[2].parameter_control_word = parameter_control_word::para_type::vertex_parameter | parameter_control_word::end_of_strip;
+	vertex[2].x = cx;
+	vertex[2].y = cy;
+	vertex[2].z = cz;
+	vertex[2].base_color = cc;
+
+	// start store queue transfer of `params[2]` to the TA
+	pref(&vertex[2]);
+
+	return store_queue_ix;
+}
+
 static inline uint32_t transfer_ta_vertex_triangle(uint32_t store_queue_ix,
                                                    float ax, float ay, float az, float au, float av, uint32_t ac,
                                                    float bx, float by, float bz, float bu, float bv, uint32_t bc,
@@ -270,6 +355,41 @@ uint32_t mark_visible_leafs(int32_t cluster)
 	return num_visible;
 }
 
+#include "cube.h"
+
+static void transfer_cube(vec3 origin, float size, mat4 viewproj)
+{
+	mat4 mvp;
+
+	glm_translate_to(viewproj, origin, mvp);
+
+	uint32_t store_queue_ix = 0;
+
+	store_queue_ix = transfer_ta_global_polygon_untextured(store_queue_ix);
+
+	for (int i = 0; i < 12; i++)
+	{
+		vec3 vp[3];
+		uint32_t vc[3];
+
+		for (int j = 0; j < 3; j++)
+		{
+			vc[j] = cube_vertex_color[cube_faces[i][j]];
+			glm_vec3_scale(cube_vertex_position[cube_faces[i][j]], size, vp[j]);
+			glm_mat4_mulv3(mvp, vp[j], 1.0f, vp[j]);
+			vertex_perspective_divide(vp[j]);
+			vertex_screen_space(vp[j]);
+		}
+
+		store_queue_ix = transfer_ta_vertex_triangle_untextured(store_queue_ix,
+													vp[0][0], vp[0][1], vp[0][2], vc[0],
+													vp[1][0], vp[1][1], vp[1][2], vc[1],
+													vp[2][0], vp[2][1], vp[2][2], vc[2]);
+	}
+
+	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
+}
+
 static void transfer_ibsp(mat4 mvp)
 {
 	{
@@ -401,6 +521,10 @@ static void transfer_lightmaps()
 
 void main()
 {
+	//////////////////////////////////////////////////////////////////////////////
+	// initialize holly graphics units
+	//////////////////////////////////////////////////////////////////////////////
+
 	transfer_init();
 
 	//////////////////////////////////////////////////////////////////////////////
@@ -462,6 +586,28 @@ void main()
 		theta += 0.1f;
 
 		//////////////////////////////////////////////////////////////////////////////
+		// test trace
+		//////////////////////////////////////////////////////////////////////////////
+
+		vec3 v_forward, v_right, v_up;
+		makevectors(r_camera.angles, v_forward, v_right, v_up);
+
+		vec3 start, end;
+		glm_vec3_copy(r_camera.origin, start);
+		glm_vec3_copy(r_camera.origin, end);
+		glm_vec3_muladds(v_forward, 512, end);
+
+		ibsp_trace_t trace;
+		ibsp_trace(&ibsp, &trace, start, end, (vec3){-16, -16, -16}, (vec3){16, 16, 16});
+
+#if 0
+		printf("r_camera.origin: %f %f %f\n", r_camera.origin[0], r_camera.origin[1], r_camera.origin[2]);
+		printf("trace.start: %f %f %f\n", trace.start[0], trace.start[1], trace.start[2]);
+		printf("trace.end: %f %f %f\n", trace.end[0], trace.end[1], trace.end[2]);
+		printf("trace.fraction: %f\n", trace.fraction);
+#endif
+
+		//////////////////////////////////////////////////////////////////////////////
 		// start the holly frame
 		//////////////////////////////////////////////////////////////////////////////
 
@@ -471,6 +617,7 @@ void main()
 		// render models
 		//////////////////////////////////////////////////////////////////////////////
 
+		transfer_cube(trace.end, 16, viewproj);
 		transfer_ibsp(mvp);
 
 		//////////////////////////////////////////////////////////////////////////////
