@@ -1,6 +1,41 @@
 
 #include "runtime.h"
 
+void makevectors(const vec3 angles, vec3 forward, vec3 right, vec3 up)
+{
+	float angle;
+	float sr, sp, sy, cr, cp, cy;
+
+	angle = glm_rad(angles[1]);
+	sy = sin(angle);
+	cy = cos(angle);
+	angle = glm_rad(angles[0]);
+	sp = sin(angle);
+	cp = cos(angle);
+	angle = glm_rad(angles[2]);
+	sr = sin(angle);
+	cr = cos(angle);
+
+	if (forward)
+	{
+		forward[0] = cp * cy;
+		forward[1] = cp * sy;
+		forward[2] = -sp;
+	}
+	if (right)
+	{
+		right[0] = (-1 * sr * sp * cy + -1 * cr * -sy);
+		right[1] = (-1 * sr * sp * sy + -1 * cr * cy);
+		right[2] = -1 * sr * cp;
+	}
+	if (up)
+	{
+		up[0] = (cr * sp * cy + -sr * -sy);
+		up[1] = (cr * sp * sy + -sr * cy);
+		up[2] = cr * cp;
+	}
+}
+
 float tanf(float radians)
 {
 	return sinf(radians) / cosf(radians);

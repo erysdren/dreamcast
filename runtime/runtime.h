@@ -67,7 +67,7 @@ bool wildcmp(const char *wild, const char *string);
 #define realloc(p, n) ta_realloc(p, n)
 #define free(p) ta_free(p)
 
-/* math functions */
+/* math macros */
 #define cos(n) __builtin_cosf(n)
 #define cosf(n) __builtin_cosf(n)
 #define sin(n) __builtin_sinf(n)
@@ -102,6 +102,9 @@ bool wildcmp(const char *wild, const char *string);
 
 /* cglm */
 #include "cglm/cglm.h"
+
+/* math functions */
+void makevectors(const vec3 angles, vec3 forward, vec3 right, vec3 up);
 
 /* file formats */
 #include "ibsp.h"
