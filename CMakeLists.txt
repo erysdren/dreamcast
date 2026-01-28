@@ -31,6 +31,7 @@ target_sources(runtime INTERFACE
 	${PROJECT_SOURCE_DIR}/runtime/camera.c
 	${PROJECT_SOURCE_DIR}/runtime/texture_cache.cpp
 	${PROJECT_SOURCE_DIR}/runtime/transfer.cpp
+	${PROJECT_SOURCE_DIR}/runtime/maple.cpp
 )
 target_compile_options(runtime INTERFACE
 	$<$<COMPILE_LANGUAGE:C,CXX>:-mfsrra>
