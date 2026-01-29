@@ -615,14 +615,6 @@ void realmain()
 	pmove_vars.friction = 10;
 	pmove_vars.entgravity = 1;
 
-#if 0
-	mat4 model = GLM_MAT4_IDENTITY_INIT, proj, view = GLM_MAT4_IDENTITY_INIT, viewproj, mvp;
-	glm_lookat(r_camera.origin, (vec3){0, 0, 64}, (vec3){0, 0, -1}, view);
-	glm_perspective(45, 640.0f/480.0f, 1.0f, 1024.0f, proj);
-	glm_mat4_mul(proj, view, viewproj);
-	glm_mat4_mul(viewproj, model, mvp);
-#endif
-
 	while (1)
 	{
 		//////////////////////////////////////////////////////////////////////////////
@@ -644,19 +636,8 @@ void realmain()
 		//////////////////////////////////////////////////////////////////////////////
 
 		maple_ft0_data_t maple_data;
-		if (!maple_read_ft0(&maple_data, 0))
+		if (maple_read_ft0(&maple_data, 0))
 		{
-			printf("maple read on port 0 failed!\n");
-		}
-		else
-		{
-#if 0
-			printf("maple_data.digital_button: 0x%04x\n", maple_data.digital_button);
-			for (int i = 0; i < 6; i++)
-				printf("maple_data.analog_coordinate_axis[%d]: %d\n", i, maple_data.analog_coordinate_axis[i]);
-			print_char('\n');
-#endif
-
 			if (!(maple_data.digital_button & (1 << 7)))
 				r_camera.angles[1] += 2;
 			else if (!(maple_data.digital_button & (1 << 6)))
@@ -673,8 +654,6 @@ void realmain()
 		//////////////////////////////////////////////////////////////////////////////
 		// update camera matrix
 		//////////////////////////////////////////////////////////////////////////////
-
-		// r_camera.angles[1] += 0.1f;
 
 		camera_make_viewproj(&r_camera, viewproj);
 		glm_mat4_mul(viewproj, model, mvp);
