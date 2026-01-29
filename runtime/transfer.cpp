@@ -22,6 +22,13 @@
 #include "systembus/systembus.hpp"
 #include "systembus/systembus_bits.hpp"
 
+const int tile_y_num = 480 / 32;
+const int tile_x_num = 640 / 32;
+
+holly::core::region_array::list_block_size list_block_size = {
+  .opaque = 8 * 4,
+};
+
 struct texture_memory_alloc__start_end {
 	uint32_t start;
 	uint32_t end;
@@ -105,13 +112,6 @@ void transfer_init(void)
 	systembus::systembus.ISTERR = 0xffffffff;
 	systembus::systembus.ISTNRM = 0xffffffff;
 
-	const int tile_y_num = 480 / 32;
-	const int tile_x_num = 640 / 32;
-
-	region_array::list_block_size list_block_size = {
-		.opaque = 8 * 4,
-	};
-
 	region_array::transfer(
 		tile_x_num,
 		tile_y_num,
@@ -127,6 +127,68 @@ void transfer_init(void)
 	//////////////////////////////////////////////////////////////////////////////
 
 	texture_cache_init(texture_memory_alloc.texture.start);
+
+	//////////////////////////////////////////////////////////////////////////////
+	// configure CORE
+	//////////////////////////////////////////////////////////////////////////////
+
+	// REGION_BASE is the (texture memory-relative) address of the region array.
+	holly.REGION_BASE = texture_memory_alloc.region_array.start;
+
+	// PARAM_BASE is the (texture memory-relative) address of ISP/TSP parameters.
+	// Anything that references an ISP/TSP parameter does so relative to this
+	// address (and not relative to the beginning of texture memory).
+	holly.PARAM_BASE = texture_memory_alloc.isp_tsp_parameters.start;
+
+	// Set the offset of the background ISP/TSP parameter, relative to PARAM_BASE
+	// SKIP is related to the size of each vertex
+	uint32_t background_offset = texture_memory_alloc.background[0].start - texture_memory_alloc.isp_tsp_parameters.start;
+
+	holly.ISP_BACKGND_T = isp_backgnd_t::tag_address(background_offset / 4)
+						| isp_backgnd_t::tag_offset(0)
+						| isp_backgnd_t::skip(1);
+
+	// FB_W_SOF1 is the (texture memory-relative) address of the framebuffer that
+	// will be written to when a tile is rendered/flushed.
+
+	spg_set_mode_640x480();
+        //aica_sound.common.VREG(vreg::output_mode::vga);
+        int output_mode = 0; // vga
+        *((volatile unsigned uint32_t *)(0xa0702C00)) = (((output_mode >> 0) & 0x3) << 8);
+
+	int x_size = 640;
+	int y_size = 480;
+	int bytes_per_pixel = 2;
+
+	// write
+	holly.FB_X_CLIP = fb_x_clip::fb_x_clip_max(x_size - 1) | fb_x_clip::fb_x_clip_min(0);
+	holly.FB_Y_CLIP = fb_y_clip::fb_y_clip_max(y_size - 1) | fb_y_clip::fb_y_clip_min(0);
+
+	// read
+	while (spg_status::vsync(holly.SPG_STATUS));
+	while (!spg_status::vsync(holly.SPG_STATUS));
+
+	holly.FB_R_SIZE = fb_r_size::fb_modulus(1)
+					| fb_r_size::fb_y_size(y_size - 1)
+					| fb_r_size::fb_x_size((x_size * bytes_per_pixel) / 4 - 1);
+
+	holly.FB_W_SOF1 = texture_memory_alloc.framebuffer[0].start;
+	holly.FB_R_SOF1 = texture_memory_alloc.framebuffer[0].start;
+
+	holly.FB_R_CTRL = fb_r_ctrl::vclk_div::pclk_vclk_1
+					| fb_r_ctrl::fb_depth::rgb565
+					| fb_r_ctrl::fb_enable;
+
+	holly.FB_W_CTRL = fb_w_ctrl::fb_packmode::rgb565;
+        holly.FB_W_LINESTRIDE = (x_size * bytes_per_pixel) / 8;
+}
+
+void ta_init(void)
+{
+	using namespace holly::core;
+	using namespace holly;
+	using holly::holly;
+
 
 	//////////////////////////////////////////////////////////////////////////////
 	// configure the TA
@@ -177,56 +239,6 @@ void transfer_init(void)
 	holly.TA_OL_LIMIT = texture_memory_alloc.object_list.end;
 
 	holly.TA_NEXT_OPB_INIT = texture_memory_alloc.object_list.start + list_block_size.total() * tile_x_num * tile_y_num;
-
-	//////////////////////////////////////////////////////////////////////////////
-	// configure CORE
-	//////////////////////////////////////////////////////////////////////////////
-
-	// REGION_BASE is the (texture memory-relative) address of the region array.
-	holly.REGION_BASE = texture_memory_alloc.region_array.start;
-
-	// PARAM_BASE is the (texture memory-relative) address of ISP/TSP parameters.
-	// Anything that references an ISP/TSP parameter does so relative to this
-	// address (and not relative to the beginning of texture memory).
-	holly.PARAM_BASE = texture_memory_alloc.isp_tsp_parameters.start;
-
-	// Set the offset of the background ISP/TSP parameter, relative to PARAM_BASE
-	// SKIP is related to the size of each vertex
-	uint32_t background_offset = texture_memory_alloc.background[0].start - texture_memory_alloc.isp_tsp_parameters.start;
-
-	holly.ISP_BACKGND_T = isp_backgnd_t::tag_address(background_offset / 4)
-						| isp_backgnd_t::tag_offset(0)
-						| isp_backgnd_t::skip(1);
-
-	// FB_W_SOF1 is the (texture memory-relative) address of the framebuffer that
-	// will be written to when a tile is rendered/flushed.
-
-	spg_set_mode_640x480();
-
-	int x_size = 640;
-	int y_size = 480;
-	int bytes_per_pixel = 2;
-
-	// write
-	holly.FB_X_CLIP = fb_x_clip::fb_x_clip_max(x_size - 1) | fb_x_clip::fb_x_clip_min(0);
-	holly.FB_Y_CLIP = fb_y_clip::fb_y_clip_max(y_size - 1) | fb_y_clip::fb_y_clip_min(0);
-
-	// read
-	while (spg_status::vsync(holly.SPG_STATUS));
-	while (!spg_status::vsync(holly.SPG_STATUS));
-
-	holly.FB_R_SIZE = fb_r_size::fb_modulus(1)
-					| fb_r_size::fb_y_size(y_size - 1)
-					| fb_r_size::fb_x_size((x_size * bytes_per_pixel) / 4 - 1);
-
-	holly.FB_W_SOF1 = texture_memory_alloc.framebuffer[0].start;
-	holly.FB_R_SOF1 = texture_memory_alloc.framebuffer[0].start;
-
-	holly.FB_R_CTRL = fb_r_ctrl::vclk_div::pclk_vclk_1
-					| fb_r_ctrl::fb_depth::rgb565
-					| fb_r_ctrl::fb_enable;
-
-	holly.FB_W_CTRL = fb_w_ctrl::fb_packmode::rgb565;
 }
 
 void transfer_frame_start(void)
@@ -238,6 +250,8 @@ void transfer_frame_start(void)
 	holly.SOFTRESET = softreset::ta_soft_reset;
 	holly.SOFTRESET = 0;
 
+        ta_init();
+
 	// TA_LIST_INIT needs to be written (every frame) prior to the first FIFO
 	// write.
 	holly.TA_LIST_INIT = ta_list_init::list_init;
@@ -245,6 +259,31 @@ void transfer_frame_start(void)
 	// dummy TA_LIST_INIT read; DCDBSysArc990907E.pdf in multiple places says this
 	// step is required.
 	(void)holly.TA_LIST_INIT;
+}
+
+void core_wait_end_of_render_video()
+{
+  using namespace systembus;
+  using systembus::systembus;
+  /*
+    "Furthermore, it is strongly recommended that the End of ISP and End of Video interrupts
+    be cleared at the same time in order to make debugging easier when an error occurs."
+  */
+  //serial::string("eorv\n");
+  bool timeout = false;
+  int64_t count = 0;
+  while (1) {
+    if (systembus.ISTERR) {
+      printf("core_wait_end_of_render_video ISTERR: %d\n", systembus.ISTERR);
+    }
+    uint32_t istnrm = systembus.ISTNRM;
+    if ((istnrm & istnrm::end_of_render_tsp) != 0)
+      break;
+  }
+
+  systembus.ISTNRM = istnrm::end_of_render_tsp
+	  	   | istnrm::end_of_render_isp
+		   | istnrm::end_of_render_video;
 }
 
 void ta_wait_opaque_list()
@@ -286,6 +325,8 @@ void transfer_frame_end(void)
 	// start the actual render--the rendering process begins by interpreting the
 	// region array
 	holly.STARTRENDER = 1;
+
+        core_wait_end_of_render_video();
 }
 
 void transfer_background_polygon(uint32_t color)
