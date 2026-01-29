@@ -47,6 +47,51 @@ static constexpr texture_memory_alloc texture_memory_alloc = {
 	.texture = {0x5a9840, 0x800000}
 };
 
+void spg_set_mode_640x480()
+{
+	using namespace holly::core;
+	using namespace holly;
+	using holly::holly;
+
+  holly.SPG_CONTROL
+    = spg_control::sync_direction::output;
+
+  holly.SPG_LOAD
+    = spg_load::vcount(525 - 1)    // number of lines per field
+    | spg_load::hcount(858 - 1);   // number of video clock cycles per line
+
+  holly.SPG_HBLANK
+    = spg_hblank::hbend(126)       // H Blank ending position
+    | spg_hblank::hbstart(837);    // H Blank starting position
+
+  holly.SPG_VBLANK
+    = spg_vblank::vbend(40)        // V Blank ending position
+    | spg_vblank::vbstart(520);    // V Blank starting position
+
+  holly.SPG_WIDTH
+    = spg_width::eqwidth(16 - 1)   // Specify the equivalent pulse width (number of video clock cycles - 1)
+    | spg_width::bpwidth(794 - 1)  // Specify the broad pulse width (number of video clock cycles - 1)
+    | spg_width::vswidth(3)        // V Sync width (number of lines)
+    | spg_width::hswidth(64 - 1);  // H Sync width (number of video clock cycles - 1)
+
+  holly.VO_STARTX
+    = vo_startx::horizontal_start_position(168);
+
+  holly.VO_STARTY
+    = vo_starty::vertical_start_position_on_field_2(40)
+    | vo_starty::vertical_start_position_on_field_1(40);
+
+  holly.VO_CONTROL
+    = vo_control::pclk_delay(22);
+
+  holly.SPG_HBLANK_INT
+    = spg_hblank_int::line_comp_val(837);
+
+  holly.SPG_VBLANK_INT
+    = spg_vblank_int::vblank_out_interrupt_line_number(21)
+    | spg_vblank_int::vblank_in_interrupt_line_number(520);
+}
+
 void transfer_init(void)
 {
 	using namespace holly::core;
@@ -147,7 +192,7 @@ void transfer_init(void)
 
 	// Set the offset of the background ISP/TSP parameter, relative to PARAM_BASE
 	// SKIP is related to the size of each vertex
-	uint32_t background_offset = 0;
+	uint32_t background_offset = texture_memory_alloc.background[0].start - texture_memory_alloc.isp_tsp_parameters.start;
 
 	holly.ISP_BACKGND_T = isp_backgnd_t::tag_address(background_offset / 4)
 						| isp_backgnd_t::tag_offset(0)
@@ -155,11 +200,33 @@ void transfer_init(void)
 
 	// FB_W_SOF1 is the (texture memory-relative) address of the framebuffer that
 	// will be written to when a tile is rendered/flushed.
-	holly.FB_W_SOF1 = texture_memory_alloc.framebuffer[0].start;
 
-	// without waiting for rendering to actually complete, immediately display the
-	// framebuffer.
+	spg_set_mode_640x480();
+
+	int x_size = 640;
+	int y_size = 480;
+	int bytes_per_pixel = 2;
+
+	// write
+	holly.FB_X_CLIP = fb_x_clip::fb_x_clip_max(x_size - 1) | fb_x_clip::fb_x_clip_min(0);
+	holly.FB_Y_CLIP = fb_y_clip::fb_y_clip_max(y_size - 1) | fb_y_clip::fb_y_clip_min(0);
+
+	// read
+	while (spg_status::vsync(holly.SPG_STATUS));
+	while (!spg_status::vsync(holly.SPG_STATUS));
+
+	holly.FB_R_SIZE = fb_r_size::fb_modulus(1)
+					| fb_r_size::fb_y_size(y_size - 1)
+					| fb_r_size::fb_x_size((x_size * bytes_per_pixel) / 4 - 1);
+
+	holly.FB_W_SOF1 = texture_memory_alloc.framebuffer[0].start;
 	holly.FB_R_SOF1 = texture_memory_alloc.framebuffer[0].start;
+
+	holly.FB_R_CTRL = fb_r_ctrl::vclk_div::pclk_vclk_1
+					| fb_r_ctrl::fb_depth::rgb565
+					| fb_r_ctrl::fb_enable;
+
+	holly.FB_W_CTRL = fb_w_ctrl::fb_packmode::rgb565;
 }
 
 void transfer_frame_start(void)
