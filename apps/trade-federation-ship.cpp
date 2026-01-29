@@ -289,8 +289,8 @@ static inline void vertex_perspective_divide(vec3 v)
 
 static inline void vertex_screen_space(vec3 v)
 {
-	v[0] = v[0] * 240.0f + 320.f;
-	v[1] = v[1] * 240.0f + 240.f;
+	v[0] = v[0] * 120.0f + 160.f;
+	v[1] = v[1] * 120.0f + 120.f;
 }
 
 static ibsp_t ibsp;

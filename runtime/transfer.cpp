@@ -22,8 +22,12 @@
 #include "systembus/systembus.hpp"
 #include "systembus/systembus_bits.hpp"
 
-const int tile_y_num = 480 / 32;
-const int tile_x_num = 640 / 32;
+#define SCREEN_WIDTH 320
+#define SCREEN_HEIGHT 240
+#define SCREEN_BYTES_PER_PIXEL 2
+
+const int tile_y_num = SCREEN_HEIGHT / 32;
+const int tile_x_num = SCREEN_WIDTH / 32;
 
 holly::core::region_array::list_block_size list_block_size = {
   .opaque = 8 * 4,
@@ -53,6 +57,53 @@ static constexpr texture_memory_alloc texture_memory_alloc = {
 	// 64-bit addresses
 	.texture = {0x5a9840, 0x800000}
 };
+
+void spg_set_mode_320x240_ntsc_ni()
+{
+	using namespace holly::core;
+	using namespace holly;
+	using holly::holly;
+
+	holly.SPG_CONTROL
+	= spg_control::sync_direction::output
+	| spg_control::ntsc;
+
+	holly.SPG_LOAD
+	= spg_load::vcount(263 - 1)
+	| spg_load::hcount(858 - 1);
+
+	holly.SPG_HBLANK
+	= spg_hblank::hbend(126)
+	| spg_hblank::hbstart(837);
+
+	holly.SPG_VBLANK
+	= spg_vblank::vbend(18)
+	| spg_vblank::vbstart(258);
+
+	holly.SPG_WIDTH
+	= spg_width::eqwidth(16 - 1)
+	| spg_width::bpwidth(794 - 1)
+	| spg_width::vswidth(3)
+	| spg_width::hswidth(64 - 1);
+
+	holly.VO_STARTX
+	= vo_startx::horizontal_start_position(164);
+
+	holly.VO_STARTY
+	= vo_starty::vertical_start_position_on_field_2(18)
+	| vo_starty::vertical_start_position_on_field_1(17);
+
+	holly.VO_CONTROL
+	= vo_control::pclk_delay(22)
+	| vo_control::pixel_double;
+
+	holly.SPG_HBLANK_INT
+	= spg_hblank_int::line_comp_val(837);
+
+	holly.SPG_VBLANK_INT
+	= spg_vblank_int::vblank_out_interrupt_line_number(21)
+	| spg_vblank_int::vblank_in_interrupt_line_number(258);
+}
 
 void spg_set_mode_640x480()
 {
@@ -151,14 +202,15 @@ void transfer_init(void)
 	// FB_W_SOF1 is the (texture memory-relative) address of the framebuffer that
 	// will be written to when a tile is rendered/flushed.
 
-	spg_set_mode_640x480();
-        //aica_sound.common.VREG(vreg::output_mode::vga);
-        int output_mode = 0; // vga
-        *((volatile unsigned uint32_t *)(0xa0702C00)) = (((output_mode >> 0) & 0x3) << 8);
+	spg_set_mode_320x240_ntsc_ni();
 
-	int x_size = 640;
-	int y_size = 480;
-	int bytes_per_pixel = 2;
+	//aica_sound.common.VREG(vreg::output_mode::cvbs_yc);
+	int output_mode = 0b11; // cvbs_yc
+	*((volatile unsigned uint32_t *)(0xa0702C00)) = (((output_mode >> 0) & 0x3) << 8);
+
+	int x_size = SCREEN_WIDTH;
+	int y_size = SCREEN_HEIGHT;
+	int bytes_per_pixel = SCREEN_BYTES_PER_PIXEL;
 
 	// write
 	holly.FB_X_CLIP = fb_x_clip::fb_x_clip_max(x_size - 1) | fb_x_clip::fb_x_clip_min(0);
@@ -175,12 +227,12 @@ void transfer_init(void)
 	holly.FB_W_SOF1 = texture_memory_alloc.framebuffer[0].start;
 	holly.FB_R_SOF1 = texture_memory_alloc.framebuffer[0].start;
 
-	holly.FB_R_CTRL = fb_r_ctrl::vclk_div::pclk_vclk_1
+	holly.FB_R_CTRL = fb_r_ctrl::vclk_div::pclk_vclk_2
 					| fb_r_ctrl::fb_depth::rgb565
 					| fb_r_ctrl::fb_enable;
 
 	holly.FB_W_CTRL = fb_w_ctrl::fb_packmode::rgb565;
-        holly.FB_W_LINESTRIDE = (x_size * bytes_per_pixel) / 8;
+	holly.FB_W_LINESTRIDE = (x_size * bytes_per_pixel) / 8;
 }
 
 void ta_init(void)
@@ -326,7 +378,7 @@ void transfer_frame_end(void)
 	// region array
 	holly.STARTRENDER = 1;
 
-        core_wait_end_of_render_video();
+	core_wait_end_of_render_video();
 }
 
 void transfer_background_polygon(uint32_t color)

@@ -9,7 +9,7 @@ void camera_init(camera_t *camera)
 
 	glm_vec3_copy((vec3){0, 0, -1}, camera->up);
 
-	camera->aspect = 640.0f/480.0f;
+	camera->aspect = 320.0f/240.0f;
 	camera->near = 0.1f;
 	camera->far = 1024.0f;
 	camera->fov = 45;
