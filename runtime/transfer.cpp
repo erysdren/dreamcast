@@ -19,6 +19,9 @@
 #include "sh7091/pref.hpp"
 #include "sh7091/store_queue_transfer.hpp"
 
+#include "systembus/systembus.hpp"
+#include "systembus/systembus_bits.hpp"
+
 struct texture_memory_alloc__start_end {
 	uint32_t start;
 	uint32_t end;
@@ -49,6 +52,13 @@ void transfer_init(void)
 	using namespace holly::core;
 	using namespace holly;
 	using holly::holly;
+
+	holly.SOFTRESET = softreset::ta_soft_reset | softreset::pipeline_soft_reset;
+	holly.SOFTRESET = 0;
+
+	// reset all holly errors and normal interrupts
+	systembus::systembus.ISTERR = 0xffffffff;
+	systembus::systembus.ISTNRM = 0xffffffff;
 
 	const int tile_y_num = 480 / 32;
 	const int tile_x_num = 640 / 32;
@@ -121,6 +131,8 @@ void transfer_init(void)
 	// >   in the TA_ISP_BASE register.
 	holly.TA_OL_LIMIT = texture_memory_alloc.object_list.end;
 
+	holly.TA_NEXT_OPB_INIT = texture_memory_alloc.object_list.start + list_block_size.total() * tile_x_num * tile_y_num;
+
 	//////////////////////////////////////////////////////////////////////////////
 	// configure CORE
 	//////////////////////////////////////////////////////////////////////////////
@@ -156,6 +168,9 @@ void transfer_frame_start(void)
 	using namespace holly;
 	using holly::holly;
 
+	holly.SOFTRESET = softreset::ta_soft_reset;
+	holly.SOFTRESET = 0;
+
 	// TA_LIST_INIT needs to be written (every frame) prior to the first FIFO
 	// write.
 	holly.TA_LIST_INIT = ta_list_init::list_init;
@@ -163,6 +178,20 @@ void transfer_frame_start(void)
 	// dummy TA_LIST_INIT read; DCDBSysArc990907E.pdf in multiple places says this
 	// step is required.
 	(void)holly.TA_LIST_INIT;
+}
+
+void ta_wait_opaque_list()
+{
+	using namespace systembus;
+	using systembus::systembus;
+
+	while ((systembus.ISTNRM & istnrm::end_of_transferring_opaque_list) == 0) {
+		if (systembus.ISTERR) {
+			printf("ta_wait_opaque_list ISTERR: %d\n", systembus.ISTERR);
+		}
+	};
+
+	systembus.ISTNRM = istnrm::end_of_transferring_opaque_list;
 }
 
 void transfer_frame_end(void)
@@ -177,6 +206,11 @@ void transfer_frame_end(void)
 
 	while (!(spg_status::vsync(holly.SPG_STATUS)));
 	while (spg_status::vsync(holly.SPG_STATUS));
+
+	// explicitly wait for the TA; if a list other than opaque is added,
+	// `ta_wait_opaque_list` should be replaced with `ta_wait_{list_type}_list`
+	// for whichever `{list_type}` was sent to the TA last.
+	ta_wait_opaque_list();
 
 	//////////////////////////////////////////////////////////////////////////////
 	// start the actual rasterization
