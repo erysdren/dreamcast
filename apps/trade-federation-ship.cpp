@@ -18,7 +18,16 @@
 #include "sh7091/pref.hpp"
 #include "sh7091/store_queue_transfer.hpp"
 
+//#define USE_DC_MAP01
+
+#ifdef USE_DC_MAP01
+#define MAP_FILENAME "maps/dc_map01.bsp"
+#define ROMFS_SOURCE_FILENAME "dc_map01_minimal.pk3.h"
+#else
+#define MAP_FILENAME "maps/trade-federation-ship.bsp"
 #define ROMFS_SOURCE_FILENAME "trade-federation-ship.pk3.h"
+#endif
+
 #include "romfs.c"
 
 #include "pvr.h"
@@ -30,6 +39,7 @@
 
 static uint32_t r_ibsp_shader_textures[256];
 static uint32_t r_ibsp_lightmap_textures[256];
+static uint32_t r_fallback_texture = TEXTURE_INVALID;
 
 static mat4 q3_world_matrix = {{0, -1, 0, 0}, {0, 0, 1, 0}, {-1, 0, 0, 0}, {0, 0, 0, 1}};
 
@@ -448,10 +458,13 @@ static void transfer_ibsp(mat4 mvp)
 			if (skip)
 				continue;
 
-			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, r_ibsp_shader_textures[face->texture]);
+			uint32_t texture = r_ibsp_shader_textures[face->texture];
 
-			if (r_ibsp_shader_textures[face->texture] == TEXTURE_INVALID)
-				printf("invalid shader texture: %s\n", ibsp.textures[face->texture].name);
+			if (texture == TEXTURE_INVALID)
+				texture = r_fallback_texture;
+				// printf("invalid shader texture: %s\n", ibsp.textures[face->texture].name);
+
+			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture);
 
 			store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
 														vp[0][0], vp[0][1], vp[0][2], vt[0][0], vt[0][1], vc[0],
@@ -544,7 +557,7 @@ void realmain()
 	// load bsp data
 	//////////////////////////////////////////////////////////////////////////////
 
-	if (!ibsp_load(ROMFS_GetFileFromPath("maps/trade-federation-ship.bsp", NULL), &ibsp))
+	if (!ibsp_load(ROMFS_GetFileFromPath(MAP_FILENAME, NULL), &ibsp))
 		exit(1);
 
 	//////////////////////////////////////////////////////////////////////////////
@@ -554,13 +567,30 @@ void realmain()
 	transfer_textures();
 	transfer_lightmaps();
 
+	for (int i = 0; i < ibsp.num_textures; i++)
+	{
+		if (r_ibsp_shader_textures[i] != TEXTURE_INVALID)
+		{
+			r_fallback_texture = r_ibsp_shader_textures[i];
+			break;
+		}
+	}
+
+	if (r_fallback_texture == TEXTURE_INVALID)
+		printf("r_fallback_texture failed!\n");
+
 	//////////////////////////////////////////////////////////////////////////////
 	// setup camera
 	//////////////////////////////////////////////////////////////////////////////
 
 	mat4 model = GLM_MAT4_IDENTITY_INIT, viewproj, mvp;
 	camera_init(&r_camera);
+
+#ifdef USE_DC_MAP01
+	glm_vec3_copy((vec3){182, -208, 99}, r_camera.origin);
+#else
 	glm_vec3_copy((vec3){0, 0, 72}, r_camera.origin);
+#endif
 
 	ibsp_pmove_vars_t pmove_vars;
 	ibsp_pmove_t pmove;
