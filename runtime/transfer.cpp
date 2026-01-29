@@ -26,8 +26,8 @@
 #define SCREEN_HEIGHT 240
 #define SCREEN_BYTES_PER_PIXEL 2
 
-const int tile_y_num = SCREEN_HEIGHT / 32;
-const int tile_x_num = SCREEN_WIDTH / 32;
+const int tile_y_num = 480 / 32;
+const int tile_x_num = 640 / 32;
 
 holly::core::region_array::list_block_size list_block_size = {
   .opaque = 8 * 4,
@@ -235,6 +235,8 @@ void transfer_init(void)
 
 	holly.FB_W_CTRL = fb_w_ctrl::fb_packmode::rgb565;
 	holly.FB_W_LINESTRIDE = (x_size * bytes_per_pixel) / 8;
+
+	holly.SCALER_CTL = scaler_ctl::horizontal_scaling_enable | scaler_ctl::vertical_scale_factor(0x0800);
 }
 
 void ta_init(void)
