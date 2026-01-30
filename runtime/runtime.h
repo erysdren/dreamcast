@@ -97,8 +97,9 @@ bool wildcmp(const char *wild, const char *string);
 #define atanf(n) __builtin_atanf(n)
 #define atan2(a, b) __builtin_atan2f(a, b)
 #define atan2f(a, b) __builtin_atan2f(a, b)
-#define pow(a, b) __builtin_pow(a, b)
-#define powf(a, b) __builtin_powf(a, b)
+
+float powf(float x, int y);
+#define pow(x, y) powf(x, y)
 
 /* cglm */
 #include "cglm/cglm.h"

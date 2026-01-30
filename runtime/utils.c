@@ -1,6 +1,23 @@
 
 #include "runtime.h"
 
+// https://stackoverflow.com/a/26860684
+float pow(float x, int y)
+{
+	float temp;
+	if (y == 0)
+		return 1;
+	temp = pow(x, y / 2);
+	if ((y % 2) == 0) {
+		return temp * temp;
+	} else {
+		if (y > 0)
+			return x * temp * temp;
+		else
+			return (temp * temp) / x;
+	}
+}
+
 void makevectors(const vec3 angles, vec3 forward, vec3 right, vec3 up)
 {
 	float angle;
