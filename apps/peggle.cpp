@@ -413,10 +413,10 @@ void realmain()
 		glm_vec2_copy(ball.origin, trace_endpos);
 		for (int bump = 0; bump < 3; bump++)
 		{
-			vec2 neworg, temp;
-			glm_vec2_scale(ball.velocity, dt, neworg);
-			glm_vec2_add(trace_endpos, neworg, trace_endpos);
-			auto* peg = closest_peg(trace_endpos, FLT_MAX);
+			vec2 temp;
+			glm_vec2_scale(ball.velocity, dt, temp);
+			glm_vec2_add(trace_endpos, temp, trace_endpos);
+			auto* peg = closest_peg(trace_endpos, ball.radius * 4);
 			if (peg)
 			{
 				// resolve collision
