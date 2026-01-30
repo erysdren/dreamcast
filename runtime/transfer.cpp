@@ -195,7 +195,8 @@ void transfer_init(void)
 
 	// Set the offset of the background ISP/TSP parameter, relative to PARAM_BASE
 	// SKIP is related to the size of each vertex
-	uint32_t background_offset = texture_memory_alloc.background[0].start - texture_memory_alloc.isp_tsp_parameters.start;
+	// uint32_t background_offset = texture_memory_alloc.background[0].start - texture_memory_alloc.isp_tsp_parameters.start;
+	uint32_t background_offset = 0;
 
 	holly.ISP_BACKGND_T = isp_backgnd_t::tag_address(background_offset / 4)
 						| isp_backgnd_t::tag_offset(0)
