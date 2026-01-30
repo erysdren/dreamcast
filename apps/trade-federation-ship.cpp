@@ -76,7 +76,7 @@ static inline uint32_t transfer_ta_global_polygon_lightmap(uint32_t store_queue_
 	store_queue_ix += (sizeof (global_parameter::polygon_type_0));
 
 	polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
-									| parameter_control_word::list_type::opaque
+									| parameter_control_word::list_type::translucent
 									| parameter_control_word::col_type::packed_color
 									| parameter_control_word::texture;
 
@@ -118,7 +118,7 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint3
 	store_queue_ix += (sizeof (global_parameter::polygon_type_0));
 
 	polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
-									| parameter_control_word::list_type::opaque
+									| parameter_control_word::list_type::translucent
 									| parameter_control_word::col_type::packed_color
 									| parameter_control_word::texture;
 
@@ -160,7 +160,7 @@ static inline uint32_t transfer_ta_global_polygon_untextured(uint32_t store_queu
 	store_queue_ix += (sizeof (global_parameter::polygon_type_0));
 
 	polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
-									| parameter_control_word::list_type::opaque
+									| parameter_control_word::list_type::translucent
 									| parameter_control_word::col_type::packed_color
 									| parameter_control_word::gouraud;
 

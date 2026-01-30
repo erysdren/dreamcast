@@ -30,7 +30,7 @@ const int tile_y_num = 480 / 32;
 const int tile_x_num = 640 / 32;
 
 holly::core::region_array::list_block_size list_block_size = {
-  .opaque = 8 * 4,
+  .translucent = 8 * 4,
 };
 
 struct texture_memory_alloc__start_end {
@@ -246,7 +246,6 @@ void ta_init(void)
 	using namespace holly;
 	using holly::holly;
 
-
 	//////////////////////////////////////////////////////////////////////////////
 	// configure the TA
 	//////////////////////////////////////////////////////////////////////////////
@@ -268,7 +267,7 @@ void ta_init(void)
 	// can still have infinite length via "object pointer block links". This
 	// mechanism is illustrated in DCDBSysArc990907E.pdf page 188.
 	holly.TA_ALLOC_CTRL = ta_alloc_ctrl::opb_mode::increasing_addresses
-						| ta_alloc_ctrl::o_opb::_8x4byte;
+						| ta_alloc_ctrl::t_opb::_8x4byte;
 
 	// While building object lists, the TA contains an internal index (exposed as
 	// the read-only TA_ITP_CURRENT) for the next address that new ISP/TSP will be
@@ -357,6 +356,34 @@ void ta_wait_opaque_list()
 	systembus.ISTNRM = istnrm::end_of_transferring_opaque_list;
 }
 
+void ta_wait_translucent_list()
+{
+	using namespace systembus;
+	using systembus::systembus;
+
+	while ((systembus.ISTNRM & istnrm::end_of_transferring_translucent_list) == 0) {
+		if (systembus.ISTERR) {
+			printf("ta_wait_translucent_list ISTERR: %d\n", systembus.ISTERR);
+		}
+	};
+
+	systembus.ISTNRM = istnrm::end_of_transferring_translucent_list;
+}
+
+void ta_wait_punch_through_list()
+{
+	using namespace systembus;
+	using systembus::systembus;
+
+	while ((systembus.ISTNRM & istnrm::end_of_transferring_punch_through_list) == 0) {
+		if (systembus.ISTERR) {
+			printf("ta_wait_punch_through_list ISTERR: %d\n", systembus.ISTERR);
+		}
+	};
+
+	systembus.ISTNRM = istnrm::end_of_transferring_punch_through_list;
+}
+
 void transfer_frame_end(void)
 {
 	using namespace holly::core;
@@ -373,7 +400,7 @@ void transfer_frame_end(void)
 	// explicitly wait for the TA; if a list other than opaque is added,
 	// `ta_wait_opaque_list` should be replaced with `ta_wait_{list_type}_list`
 	// for whichever `{list_type}` was sent to the TA last.
-	ta_wait_opaque_list();
+	ta_wait_translucent_list();
 
 	//////////////////////////////////////////////////////////////////////////////
 	// start the actual rasterization
