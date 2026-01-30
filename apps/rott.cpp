@@ -56,39 +56,6 @@ void construct_tilemap()
 	}
 }
 
-void transfer_background_polygon(uint32_t isp_tsp_parameter_start)
-{
-  using namespace holly::core::parameter;
-
-  using parameter = isp_tsp_parameter<3>;
-
-  volatile parameter * polygon = (volatile parameter *)&texture_memory32[isp_tsp_parameter_start];
-
-  polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::always
-                                    | isp_tsp_instruction_word::culling_mode::no_culling;
-
-  polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
-                                | tsp_instruction_word::dst_alpha_instr::zero
-                                | tsp_instruction_word::fog_control::no_fog;
-
-  polygon->texture_control_word = 0;
-
-  polygon->vertex[0].x =  0.0f;
-  polygon->vertex[0].y =  0.0f;
-  polygon->vertex[0].z =  0.00001f;
-  polygon->vertex[0].base_color = 0xff00ff;
-
-  polygon->vertex[1].x = 32.0f;
-  polygon->vertex[1].y =  0.0f;
-  polygon->vertex[1].z =  0.00001f;
-  polygon->vertex[1].base_color = 0xff00ff;
-
-  polygon->vertex[2].x = 32.0f;
-  polygon->vertex[2].y = 32.0f;
-  polygon->vertex[2].z =  0.00001f;
-  polygon->vertex[2].base_color = 0xff00ff;
-}
-
 static inline uint32_t transfer_ta_global_end_of_list(uint32_t store_queue_ix)
 {
   using namespace holly::ta;
@@ -122,7 +89,7 @@ static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint3
   store_queue_ix += (sizeof (global_parameter::polygon_type_0));
 
   polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
-                                  | parameter_control_word::list_type::opaque
+                                  | parameter_control_word::list_type::translucent
                                   | parameter_control_word::col_type::packed_color
                                   | parameter_control_word::texture;
 
@@ -278,153 +245,6 @@ static inline uint32_t transfer_ta_vertex_triangle(uint32_t store_queue_ix,
   return store_queue_ix;
 }
 
-/*
-  These vertex and face definitions are a trivial transformation of the default
-  Blender cube, as exported by the .obj exporter (with triangulation enabled).
- */
-struct vec3 {
-  float x;
-  float y;
-  float z;
-};
-
-union vec2 {
-  struct { float x, y; };
-  struct { float u, v; };
-};
-
-struct ivec2 {
-  int x;
-  int y;
-};
-
-static const vec3 cube_vertex_position[] = {
-  {  1.0f,  1.0f, -1.0f },
-  {  1.0f, -1.0f, -1.0f },
-  {  1.0f,  1.0f,  1.0f },
-  {  1.0f, -1.0f,  1.0f },
-  { -1.0f,  1.0f, -1.0f },
-  { -1.0f, -1.0f, -1.0f },
-  { -1.0f,  1.0f,  1.0f },
-  { -1.0f, -1.0f,  1.0f },
-};
-
-static const vec2 cube_vertex_texture[] = {
-  { 1.0f, 0.0f },
-  { 0.0f, 1.0f },
-  { 0.0f, 0.0f },
-  { 1.0f, 1.0f },
-};
-
-struct position_texture {
-  int position;
-  int texture;
-};
-
-struct face {
-  position_texture a;
-  position_texture b;
-  position_texture c;
-};
-
-/*
-  It is also possible to submit each cube face as a 4-vertex triangle strip, or
-  submit the entire cube as a single triangle strip.
-
-  Separate 3-vertex triangles are chosen to make this example more
-  straightforward, but this is not the best approach if high performance is
-  desired.
- */
-static const face cube_faces[] = {
-  {{4, 0}, {2, 1}, {0, 2}},
-  {{2, 0}, {7, 1}, {3, 2}},
-  {{6, 0}, {5, 1}, {7, 2}},
-  {{1, 0}, {7, 1}, {5, 2}},
-  {{0, 0}, {3, 1}, {1, 2}},
-  {{4, 0}, {1, 1}, {5, 2}},
-  {{4, 0}, {6, 3}, {2, 1}},
-  {{2, 0}, {6, 3}, {7, 1}},
-  {{6, 0}, {4, 3}, {5, 1}},
-  {{1, 0}, {3, 3}, {7, 1}},
-  {{0, 0}, {2, 3}, {3, 1}},
-  {{4, 0}, {0, 3}, {1, 1}},
-};
-static const int cube_faces_length = (sizeof (cube_faces)) / (sizeof (cube_faces[0]));
-
-#define cos(n) __builtin_cosf(n)
-#define sin(n) __builtin_sinf(n)
-#define fabs(n) __builtin_fabsf(n)
-#define FLT_MAX __builtin_inff()
-
-static inline vec3 vertex_perspective_divide(vec3 v)
-{
-  float w = 1.0f / (v.z + 3.0f);
-  return (vec3){v.x * w, v.y * w, w};
-}
-
-static inline vec3 vertex_screen_space(vec3 v)
-{
-  return (vec3){
-    v.x * 240.f + 320.f,
-    v.y * 240.f + 240.f,
-    v.z,
-  };
-}
-
-void transfer_ta_cube(uint32_t texture_address)
-{
-  {
-    using namespace sh7091;
-    using sh7091::sh7091;
-
-    // set the store queue destination address to the TA Polygon Converter FIFO
-    sh7091.CCN.QACR0 = sh7091::ccn::qacr0::address(ta_fifo_polygon_converter);
-    sh7091.CCN.QACR1 = sh7091::ccn::qacr1::address(ta_fifo_polygon_converter);
-  }
-
-  uint32_t store_queue_ix = 0;
-
-  store_queue_ix = transfer_ta_global_polygon(store_queue_ix, texture_address);
-
-  for (int face_ix = 0; face_ix < cube_faces_length; face_ix++) {
-    int ipa = cube_faces[face_ix].a.position;
-    int ipb = cube_faces[face_ix].b.position;
-    int ipc = cube_faces[face_ix].c.position;
-
-    vec3 vpa = vertex_screen_space(
-                 vertex_perspective_divide(
-                   cube_vertex_position[ipa]));
-
-    vec3 vpb = vertex_screen_space(
-                 vertex_perspective_divide(
-                   cube_vertex_position[ipb]));
-
-    vec3 vpc = vertex_screen_space(
-                 vertex_perspective_divide(
-                   cube_vertex_position[ipc]));
-
-    int ita = cube_faces[face_ix].a.texture;
-    int itb = cube_faces[face_ix].b.texture;
-    int itc = cube_faces[face_ix].c.texture;
-
-    vec2 vta = cube_vertex_texture[ita];
-    vec2 vtb = cube_vertex_texture[itb];
-    vec2 vtc = cube_vertex_texture[itc];
-
-    // vertex color is irrelevant in "decal" mode
-    uint32_t va_color = 0;
-    uint32_t vb_color = 0;
-    uint32_t vc_color = 0;
-
-    store_queue_ix = transfer_ta_vertex_triangle(store_queue_ix,
-                                                 vpa.x, vpa.y, vpa.z, vta.u, vta.v, va_color,
-                                                 vpb.x, vpb.y, vpb.z, vtb.u, vtb.v, vb_color,
-                                                 vpc.x, vpc.y, vpc.z, vtc.u, vtc.v, vc_color);
-  }
-
-  store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
-}
-
 float fclamp(float i, float min, float max)
 {
 	return __builtin_fmin(__builtin_fmax(i, min), max);
@@ -466,27 +286,27 @@ static inline int ray_cast(ray_hit_t *hit)
 
 	while (1)
 	{
-		if (hit->side_dist.x < hit->side_dist.y)
+		if (hit->side_dist[0] < hit->side_dist[1])
 		{
-			hit->side_dist.x += hit->delta_dist.x;
-			hit->map_pos.x += hit->step.x;
+			hit->side_dist[0] += hit->delta_dist[0];
+			hit->map_pos[0] += hit->step[0];
 			hit->side = 0;
 		}
 		else
 		{
-			hit->side_dist.y += hit->delta_dist.y;
-			hit->map_pos.y += hit->step.y;
+			hit->side_dist[1] += hit->delta_dist[1];
+			hit->map_pos[1] += hit->step[1];
 			hit->side = 1;
 		}
 
 		// out of bounds
-		if (hit->map_pos.y < 0 || hit->map_pos.y >= TILEMAP_HEIGHT)
+		if (hit->map_pos[1] < 0 || hit->map_pos[1] >= TILEMAP_HEIGHT)
 			return RAY_HIT_DONE;
-		if (hit->map_pos.x < 0 || hit->map_pos.x >= TILEMAP_WIDTH)
+		if (hit->map_pos[0] < 0 || hit->map_pos[0] >= TILEMAP_WIDTH)
 			return RAY_HIT_DONE;
 
 		// get tile
-		tile = &tilemap[hit->map_pos.y][hit->map_pos.x];
+		tile = &tilemap[hit->map_pos[1]][hit->map_pos[0]];
 
 		// hit
 		if (tile->height > 0)
@@ -499,16 +319,16 @@ static inline int ray_cast(ray_hit_t *hit)
 			tile->drawflags |= TILE_DRAWFLAG_FLOOR | TILE_DRAWFLAG_CEILING;
 		}
 
-		if (hit->map_pos.x == 0 || hit->map_pos.x == TILEMAP_WIDTH - 1)
+		if (hit->map_pos[0] == 0 || hit->map_pos[0] == TILEMAP_WIDTH - 1)
 			return RAY_HIT_SKY;
-		if (hit->map_pos.y == 0 || hit->map_pos.y == TILEMAP_HEIGHT - 1)
+		if (hit->map_pos[1] == 0 || hit->map_pos[1] == TILEMAP_HEIGHT - 1)
 			return RAY_HIT_SKY;
 	}
 
 	return RAY_HIT_DONE;
 }
 
-static struct camera_t {
+static struct {
 	vec3 origin;
 	float yaw;
 	float yaw_cos;
@@ -531,44 +351,46 @@ void raycast_column(int x)
 	int ystart = SCREEN_HEIGHT;
 
 	// get map pos
-	hit.map_pos.x = (int)camera.origin.x;
-	hit.map_pos.y = (int)camera.origin.y;
+	hit.map_pos[0] = (int)camera.origin[0];
+	hit.map_pos[1] = (int)camera.origin[1];
 
 	// get ray direction
-	hit.ray_dir.x = ((2.0f / (float)480) * (float)x) - 1.0f;
-	hit.ray_dir.y = 1.0f;
+	hit.ray_dir[0] = ((2.0f / (float)480) * (float)x) - 1.0f;
+	hit.ray_dir[1] = 1.0f;
 
 	// rotate around (0, 0) by camera yaw
-	temp = hit.ray_dir;
-	hit.ray_dir.x = (-temp.x * camera.yaw_cos) - (-temp.y * camera.yaw_sin);
-	hit.ray_dir.y = (temp.x * camera.yaw_sin) + (temp.y * camera.yaw_cos);
+	glm_vec2_copy(hit.ray_dir, temp);
+	hit.ray_dir[0] = (-temp[0] * camera.yaw_cos) - (-temp[1] * camera.yaw_sin);
+	hit.ray_dir[1] = (temp[0] * camera.yaw_sin) + (temp[1] * camera.yaw_cos);
 
 	// get delta of ray (prevent divide by 0)
-	hit.delta_dist.x = (hit.ray_dir.x == 0.0f) ? FLT_MAX : fabs(1.0f / hit.ray_dir.x);
-	hit.delta_dist.y = (hit.ray_dir.y == 0.0f) ? FLT_MAX : fabs(1.0f / hit.ray_dir.y);
+	hit.delta_dist[0] = (hit.ray_dir[0] == 0.0f) ? FLT_MAX : fabs(1.0f / hit.ray_dir[0]);
+	hit.delta_dist[1] = (hit.ray_dir[1] == 0.0f) ? FLT_MAX : fabs(1.0f / hit.ray_dir[1]);
 
 	// get step and initial side_dist
-	if (hit.ray_dir.x < 0)
+	if (hit.ray_dir[0] < 0)
 	{
-		hit.step.x = -1;
-		hit.side_dist.x = (camera.origin.x - (float)hit.map_pos.x) * hit.delta_dist.x;
+		hit.step[0] = -1;
+		hit.side_dist[0] = (camera.origin[0] - (float)hit.map_pos[0]) * hit.delta_dist[0];
 	}
 	else
 	{
-		hit.step.x = 1;
-		hit.side_dist.x = ((float)hit.map_pos.x + 1.0f - camera.origin.x) * hit.delta_dist.x;
+		hit.step[0] = 1;
+		hit.side_dist[0] = ((float)hit.map_pos[0] + 1.0f - camera.origin[0]) * hit.delta_dist[0];
 	}
 
-	if (hit.ray_dir.y < 0)
+	if (hit.ray_dir[1] < 0)
 	{
-		hit.step.y = -1;
-		hit.side_dist.y = (camera.origin.y - (float)hit.map_pos.y) * hit.delta_dist.y;
+		hit.step[1] = -1;
+		hit.side_dist[1] = (camera.origin[1] - (float)hit.map_pos[1]) * hit.delta_dist[1];
 	}
 	else
 	{
-		hit.step.y = 1;
-		hit.side_dist.y = ((float)hit.map_pos.y + 1.0f - camera.origin.y) * hit.delta_dist.y;
+		hit.step[1] = 1;
+		hit.side_dist[1] = ((float)hit.map_pos[1] + 1.0f - camera.origin[1]) * hit.delta_dist[1];
 	}
+
+	uint32_t store_queue_ix = 0;
 
 	// do cast
 	while ((hit_type = ray_cast(&hit)) != RAY_HIT_DONE)
@@ -580,21 +402,21 @@ void raycast_column(int x)
 		// get dist
 		if (!hit.side)
 		{
-			dist = hit.side_dist.x - hit.delta_dist.x;
-			dist2 = fclamp(hit.side_dist.y, dist, dist + hit.delta_dist.x);
+			dist = hit.side_dist[0] - hit.delta_dist[0];
+			dist2 = fclamp(hit.side_dist[1], dist, dist + hit.delta_dist[0]);
 		}
 		else
 		{
-			dist = hit.side_dist.y - hit.delta_dist.y;
-			dist2 = fclamp(hit.side_dist.x, dist, dist + hit.delta_dist.y);
+			dist = hit.side_dist[1] - hit.delta_dist[1];
+			dist2 = fclamp(hit.side_dist[0], dist, dist + hit.delta_dist[1]);
 		}
 
 		// get tile
-		tile = &tilemap[hit.map_pos.y][hit.map_pos.x];
+		tile = &tilemap[hit.map_pos[1]][hit.map_pos[0]];
 
 		// line heights
-		block_top = camera.origin.z - tile->height * 0.125f;
-		block_bottom = camera.origin.z;
+		block_top = camera.origin[2] - tile->height * 0.125f;
+		block_bottom = camera.origin[2];
 
 		// line start and end
 		line_start = ((block_top / dist) * pixel_height_scale) + camera.horizon;
@@ -610,13 +432,11 @@ void raycast_column(int x)
 
 			// get wall impact point
 			if (!hit.side)
-				wall_x = camera.origin.y + dist * hit.ray_dir.y;
+				wall_x = camera.origin[1] + dist * hit.ray_dir[1];
 			else
-				wall_x = camera.origin.x + dist * hit.ray_dir.x;
+				wall_x = camera.origin[0] + dist * hit.ray_dir[0];
 
 			wall_x -= __builtin_floorf(wall_x);
-
-			uint32_t store_queue_ix = 0;
 
 			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, 0x700000);
 
@@ -631,12 +451,15 @@ void raycast_column(int x)
 			vec2 vtd = (vec2){};
 
 			store_queue_ix = transfer_ta_vertex_quad(store_queue_ix,
-														vpa.x, vpa.y, vpa.z, vta.u, vta.v, 0,
-														vpb.x, vpb.y, vpb.z, vtb.u, vtb.v, 0,
-														vpc.x, vpc.y, vpc.z, vtc.u, vtc.v, 0,
-														vpd.x, vpd.y, vpd.z, vtd.u, vtd.v, 0);
+														vpa[0], vpa[1], vpa[2], vta[0], vta[1], 0,
+														vpb[0], vpb[1], vpb[2], vtb[0], vtb[1], 0,
+														vpc[0], vpc[1], vpc[2], vtc[0], vtc[1], 0,
+														vpd[0], vpd[1], vpd[2], vtd[0], vtd[1], 0);
+
 		}
 	}
+
+	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
 }
 
 void raycast()
@@ -681,162 +504,29 @@ const uint8_t palette[] __attribute__((aligned(4))) = {
 
 void main()
 {
-  using namespace holly::core;
-  using namespace holly;
-  using holly::holly;
+	transfer_init();
 
-  /* palette */
-  holly.PAL_RAM_CTRL = holly::pal_ram_ctrl::pixel_format::argb8888;
+	using namespace holly::core;
+	using namespace holly;
+	using holly::holly;
 
-  for (int i = 0; i < 256; i++)
-  {
-    holly.PALETTE_RAM[i] = PACK_ARGB8888(palette[i * 3 + 0], palette[i * 3 + 1], palette[i * 3 + 2], 255);
-  }
+	/* palette */
+	holly.PAL_RAM_CTRL = holly::pal_ram_ctrl::pixel_format::argb8888;
 
-  holly.PT_ALPHA_REF = 0xff;
+	for (int i = 0; i < 256; i++)
+	{
+		holly.PALETTE_RAM[i] = PACK_ARGB8888(palette[i * 3 + 0], palette[i * 3 + 1], palette[i * 3 + 2], 255);
+	}
 
-  /*
-    a very simple memory map:
-
-    the ordering within texture memory is not significant, and could be
-    anything
-  */
-  uint32_t framebuffer_start       = 0x200000; // intentionally the same address that the boot rom used to draw the SEGA logo
-  uint32_t isp_tsp_parameter_start = 0x400000;
-  uint32_t region_array_start      = 0x500000;
-  uint32_t object_list_start       = 0x100000;
-
-  // these addresses are in "64-bit" texture memory address space:
-  uint32_t texture_start           = 0x700000;
-
-  const int tile_y_num = 480 / 32;
-  const int tile_x_num = 640 / 32;
-
-  region_array::list_block_size list_block_size = {
-    .opaque = 8 * 4,
-  };
-
-  region_array::transfer(tile_x_num,
-                         tile_y_num,
-                         list_block_size,
-                         region_array_start,
-                         object_list_start);
-
-  transfer_background_polygon(isp_tsp_parameter_start);
-
-  //////////////////////////////////////////////////////////////////////////////
-  // transfer the texture image to texture ram
-  //////////////////////////////////////////////////////////////////////////////
-
-  transfer_texture(texture_start);
-
-  //////////////////////////////////////////////////////////////////////////////
-  // configure the TA
-  //////////////////////////////////////////////////////////////////////////////
-
-  // TA_GLOB_TILE_CLIP restricts which "object pointer blocks" are written
-  // to.
-  //
-  // This can also be used to implement "windowing", as long as the desired
-  // window size happens to be a multiple of 32 pixels. The "User Tile Clip" TA
-  // control parameter can also ~equivalently be used as many times as desired
-  // within a single TA initialization to produce an identical effect.
-  //
-  // See DCDBSysArc990907E.pdf page 183.
-  holly.TA_GLOB_TILE_CLIP = ta_glob_tile_clip::tile_y_num(tile_y_num - 1)
-                          | ta_glob_tile_clip::tile_x_num(tile_x_num - 1);
-
-  // While CORE supports arbitrary-length object lists, the TA uses "object
-  // pointer blocks" as a memory allocation strategy. These fixed-length blocks
-  // can still have infinite length via "object pointer block links". This
-  // mechanism is illustrated in DCDBSysArc990907E.pdf page 188.
-  holly.TA_ALLOC_CTRL = ta_alloc_ctrl::opb_mode::increasing_addresses
-                      | ta_alloc_ctrl::o_opb::_8x4byte;
-
-  // While building object lists, the TA contains an internal index (exposed as
-  // the read-only TA_ITP_CURRENT) for the next address that new ISP/TSP will be
-  // stored at. The initial value of this index is TA_ISP_BASE.
-
-  // reserve space in ISP/TSP parameters for the background parameter
-  using polygon = holly::core::parameter::isp_tsp_parameter<3>;
-  uint32_t ta_isp_base_offset = (sizeof (polygon)) * 1;
-
-  holly.TA_ISP_BASE = isp_tsp_parameter_start + ta_isp_base_offset;
-  holly.TA_ISP_LIMIT = isp_tsp_parameter_start + 0x100000;
-
-  // Similarly, the TA also contains, for up to 600 tiles, an internal index for
-  // the next address that an object list entry will be stored for each
-  // tile. These internal indicies are partially exposed via the read-only
-  // TA_OL_POINTERS.
-  holly.TA_OL_BASE = object_list_start;
-
-  // TA_OL_LIMIT, DCDBSysArc990907E.pdf page 385:
-  //
-  // >   Because the TA may automatically store data in the address that is
-  // >   specified by this register, it must not be used for other data.  For
-  // >   example, the address specified here must not be the same as the address
-  // >   in the TA_ISP_BASE register.
-  holly.TA_OL_LIMIT = object_list_start + 0x100000 - 32;
-
-  //////////////////////////////////////////////////////////////////////////////
-  // configure CORE
-  //////////////////////////////////////////////////////////////////////////////
-
-  // REGION_BASE is the (texture memory-relative) address of the region array.
-  holly.REGION_BASE = region_array_start;
-
-  // PARAM_BASE is the (texture memory-relative) address of ISP/TSP parameters.
-  // Anything that references an ISP/TSP parameter does so relative to this
-  // address (and not relative to the beginning of texture memory).
-  holly.PARAM_BASE = isp_tsp_parameter_start;
-
-  // Set the offset of the background ISP/TSP parameter, relative to PARAM_BASE
-  // SKIP is related to the size of each vertex
-  uint32_t background_offset = 0;
-
-  holly.ISP_BACKGND_T = isp_backgnd_t::tag_address(background_offset / 4)
-                      | isp_backgnd_t::tag_offset(0)
-                      | isp_backgnd_t::skip(1);
-
-  // FB_W_SOF1 is the (texture memory-relative) address of the framebuffer that
-  // will be written to when a tile is rendered/flushed.
-  holly.FB_W_SOF1 = framebuffer_start;
-
-  // without waiting for rendering to actually complete, immediately display the
-  // framebuffer.
-  holly.FB_R_SOF1 = framebuffer_start;
+	holly.PT_ALPHA_REF = 0xff;
 
 	// draw 500 frames of cube rotation
 	while (1)
 	{
-		//////////////////////////////////////////////////////////////////////////////
-		// transfer cube to texture memory via the TA polygon converter FIFO
-		//////////////////////////////////////////////////////////////////////////////
-
-		// TA_LIST_INIT needs to be written (every frame) prior to the first FIFO
-		// write.
-		holly.TA_LIST_INIT = ta_list_init::list_init;
-
-		// dummy TA_LIST_INIT read; DCDBSysArc990907E.pdf in multiple places says this
-		// step is required.
-		(void)holly.TA_LIST_INIT;
+		transfer_frame_start();
 
 		raycast();
-		transfer_ta_cube(texture_start);
 
-		//////////////////////////////////////////////////////////////////////////////
-		// wait for vertical synchronization (and the TA)
-		//////////////////////////////////////////////////////////////////////////////
-
-		while (!(spg_status::vsync(holly.SPG_STATUS)));
-		while (spg_status::vsync(holly.SPG_STATUS));
-
-		//////////////////////////////////////////////////////////////////////////////
-		// start the actual rasterization
-		//////////////////////////////////////////////////////////////////////////////
-
-		// start the actual render--the rendering process begins by interpreting the
-		// region array
-		holly.STARTRENDER = 1;
+		transfer_frame_end();
 	}
 }
