@@ -334,14 +334,14 @@ void realmain()
 	// setup map
 	//////////////////////////////////////////////////////////////////////////////
 
-	ball.radius = 8;
+	ball.radius = 4;
 	ball.mass = 200;
 	ball.origin[0] = (640/2) - (ball.radius / 2) + 8;
 	ball.origin[1] = 16 + 12;
 	ball.active = true;
 	ball.react = true;
 	ball.texture = BALL_TEXTURE;
-	ball.scale = 1;
+	ball.scale = 2;
 	glm_vec2_zero(ball.velocity);
 
 	for (int y = 0; y < NUM_PEGS_Y; y++)
