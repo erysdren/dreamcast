@@ -205,7 +205,7 @@ struct ball_t {
 	uint32_t texture;
 	float radius;
 	float mass;
-	bool active; ///< take collisions
+	bool active; ///< is visible and take collisions
 	bool react; ///< physically react to hits
 	float scale;
 };
@@ -336,8 +336,8 @@ void realmain()
 
 	ball.radius = 8;
 	ball.mass = 200;
-	ball.origin[0] = (640/2) - (ball.radius / 2);
-	ball.origin[1] = 16;
+	ball.origin[0] = (640/2) - (ball.radius / 2) + 8;
+	ball.origin[1] = 16 + 12;
 	ball.active = true;
 	ball.react = true;
 	ball.texture = BALL_TEXTURE;
@@ -406,7 +406,7 @@ void realmain()
 		accel[1] += 300;
 
 		// do peg collision
-		float dt = 0.01f;
+		float dt = 0.02f;
 		float trace_fraction = 1.0f;
 		vec2 trace_endpos;
 		glm_vec2_muladds(accel, dt, ball.velocity);
@@ -417,15 +417,14 @@ void realmain()
 			glm_vec2_scale(ball.velocity, dt, neworg);
 			glm_vec2_add(trace_endpos, neworg, trace_endpos);
 			auto* peg = closest_peg(trace_endpos, FLT_MAX);
-			trace_fraction = 1.0f;
 			if (peg)
 			{
 				// resolve collision
 				float closestdistsq = glm_vec2_distance2(peg->origin, trace_endpos);
 				float dist = pow(ball.radius + peg->radius, 2);
+				trace_fraction = 1.0f - (dist / closestdistsq);
 				if (closestdistsq <= dist)
 				{
-					trace_fraction = 1.0f - (dist / closestdistsq);
 					float p;
 					vec2 c, n, ball_velocity_normalized, peg_origin_minus_c;
 					vec2 peg_mass_times_n;
@@ -443,6 +442,8 @@ void realmain()
 					glm_vec2_scale(n, p * peg->mass, peg_mass_times_n);
 					glm_vec2_scale(n, p * ball.mass, ball_mass_times_n);
 					glm_vec2_addsub(ball_mass_times_n, peg_mass_times_n, ball.velocity);
+
+					peg->active = false;
 				}
 			}
 			else
@@ -450,6 +451,9 @@ void realmain()
 				// no pegs around
 				break;
 			}
+
+			if (trace_fraction == 1.0f)
+				break;
 
 			dt *= 1.0f - trace_fraction;
 		}
