@@ -26,64 +26,6 @@
 
 #include "tinyphysicsengine.h"
 
-static inline uint32_t transfer_ta_global_end_of_list(uint32_t store_queue_ix)
-{
-	using namespace holly::ta;
-	using namespace holly::ta::parameter;
-
-	//
-	// TA "end of list" global transfer
-	//
-	volatile global_parameter::end_of_list * end_of_list = (volatile global_parameter::end_of_list *)&store_queue[store_queue_ix];
-	store_queue_ix += (sizeof (global_parameter::end_of_list));
-
-	end_of_list->parameter_control_word = parameter_control_word::para_type::end_of_list;
-
-	// start store queue transfer of `end_of_list` to the TA
-	pref(end_of_list);
-
-	return store_queue_ix;
-}
-
-static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix)
-{
-	using namespace holly::core::parameter;
-	using namespace holly::ta;
-	using namespace holly::ta::parameter;
-
-	//
-	// TA polygon global transfer
-	//
-
-	volatile global_parameter::polygon_type_0 * polygon = (volatile global_parameter::polygon_type_0 *)&store_queue[store_queue_ix];
-	store_queue_ix += (sizeof (global_parameter::polygon_type_0));
-
-	polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
-									| parameter_control_word::list_type::translucent
-									| parameter_control_word::col_type::packed_color
-									| parameter_control_word::gouraud;
-
-	polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::greater
-										| isp_tsp_instruction_word::culling_mode::no_culling;
-	// Note that it is not possible to use
-	// ISP_TSP_INSTRUCTION_WORD::GOURAUD_SHADING in this isp_tsp_instruction_word,
-	// because `gouraud` is one of the bits overwritten by the value in
-	// parameter_control_word. See DCDBSysArc990907E.pdf page 200.
-
-	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
-									| tsp_instruction_word::dst_alpha_instr::zero
-									| tsp_instruction_word::fog_control::no_fog
-									| tsp_instruction_word::filter_mode::bilinear_filter
-									| tsp_instruction_word::texture_shading_instruction::decal;
-
-	polygon->texture_control_word = 0;
-
-	// start store queue transfer of `polygon` to the TA
-	pref(polygon);
-
-	return store_queue_ix;
-}
-
 static inline uint32_t transfer_ta_vertex_quad(uint32_t store_queue_ix,
                                                float ax, float ay, float az, uint32_t ac,
                                                float bx, float by, float bz, uint32_t bc,
@@ -169,7 +111,7 @@ static void transfer_scene(TPE_World* world)
 				printf("%f %f %f\n", vp[j][0], vp[j][1], vp[j][2]);
 			}
 
-			store_queue_ix = transfer_ta_global_polygon(store_queue_ix);
+			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, TEXTURE_INVALID);
 
 			store_queue_ix = transfer_ta_vertex_quad(store_queue_ix,
 														vp[0][0], vp[0][1], vp[0][2], vc[0],

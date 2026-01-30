@@ -15,6 +15,8 @@
 #include "sh7091/pref.hpp"
 #include "sh7091/store_queue_transfer.hpp"
 
+#include "interrupt.cpp"
+
 enum {
 	TILE_DRAWFLAG_NONE = 0,
 	TILE_DRAWFLAG_NORTH = 1 << 0,
@@ -35,88 +37,31 @@ enum {
 #define SCREEN_HEIGHT (480)
 
 typedef struct tile {
-	uint32_t texture_address;
+	uint32_t texture_index;
 	uint16_t height;
 	uint16_t drawflags;
 } tile_t;
 
 static tile_t tilemap[TILEMAP_HEIGHT][TILEMAP_WIDTH];
 
+const uint8_t texture[] __attribute__((aligned(4))) = {
+	#embed "rott_wall1.64x64.palette_8bpp.twiddled"
+};
+
 void construct_tilemap()
 {
+	uint32_t texture_index = texture_cache_raw(64, 64, TEXTURE_TYPE_PAL8, TEXTURE_FLAG_TWIDDLED, texture, sizeof(texture));
+
 	for (int y = 0; y < TILEMAP_HEIGHT; y++)
 	{
 		for (int x = 0; x < TILEMAP_WIDTH; x++)
 		{
 			if (y == 0 || y == TILEMAP_HEIGHT - 1 || x == 0 || x == TILEMAP_WIDTH - 1)
-				tilemap[y][x] = tile_t{ 0x700000, 1, TILE_DRAWFLAG_NONE };
+				tilemap[y][x] = tile_t{ texture_index, 1, TILE_DRAWFLAG_NONE };
 			else
-				tilemap[y][x] = tile_t{ 0x700000, 0, TILE_DRAWFLAG_NONE };
+				tilemap[y][x] = tile_t{ texture_index, 0, TILE_DRAWFLAG_NONE };
 		}
 	}
-}
-
-static inline uint32_t transfer_ta_global_end_of_list(uint32_t store_queue_ix)
-{
-  using namespace holly::ta;
-  using namespace holly::ta::parameter;
-
-  //
-  // TA "end of list" global transfer
-  //
-  volatile global_parameter::end_of_list * end_of_list = (volatile global_parameter::end_of_list *)&store_queue[store_queue_ix];
-  store_queue_ix += (sizeof (global_parameter::end_of_list));
-
-  end_of_list->parameter_control_word = parameter_control_word::para_type::end_of_list;
-
-  // start store queue transfer of `end_of_list` to the TA
-  pref(end_of_list);
-
-  return store_queue_ix;
-}
-
-static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint32_t texture_address)
-{
-  using namespace holly::core::parameter;
-  using namespace holly::ta;
-  using namespace holly::ta::parameter;
-
-  //
-  // TA polygon global transfer
-  //
-
-  volatile global_parameter::polygon_type_0 * polygon = (volatile global_parameter::polygon_type_0 *)&store_queue[store_queue_ix];
-  store_queue_ix += (sizeof (global_parameter::polygon_type_0));
-
-  polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
-                                  | parameter_control_word::list_type::translucent
-                                  | parameter_control_word::col_type::packed_color
-                                  | parameter_control_word::texture;
-
-  polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::greater
-                                    | isp_tsp_instruction_word::culling_mode::no_culling;
-  // Note that it is not possible to use
-  // ISP_TSP_INSTRUCTION_WORD::GOURAUD_SHADING in this isp_tsp_instruction_word,
-  // because `gouraud` is one of the bits overwritten by the value in
-  // parameter_control_word. See DCDBSysArc990907E.pdf page 200.
-
-  polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
-                                | tsp_instruction_word::dst_alpha_instr::zero
-                                | tsp_instruction_word::fog_control::no_fog
-                                | tsp_instruction_word::filter_mode::point_sampled
-                                | tsp_instruction_word::texture_shading_instruction::decal
-                                | tsp_instruction_word::texture_u_size::_64
-                                | tsp_instruction_word::texture_v_size::_64;
-
-  polygon->texture_control_word = texture_control_word::pixel_format::palette_8bpp
-                                | texture_control_word::scan_order::twiddled
-                                | texture_control_word::palette_selector8(0)
-                                | texture_control_word::texture_address(texture_address / 8);
-
-  // start store queue transfer of `polygon` to the TA
-  pref(polygon);
-
-  return store_queue_ix;
 }
 
 static inline uint32_t transfer_ta_vertex_quad(uint32_t store_queue_ix,
@@ -438,7 +383,7 @@ void raycast_column(int x)
 
 			wall_x -= __builtin_floorf(wall_x);
 
-			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, 0x700000);
+			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, tile->texture_index);
 
 			vec3 vpa = (vec3){x, line_start_c, 0};
 			vec3 vpb = (vec3){x, line_end_c, 0};
@@ -481,34 +426,19 @@ void raycast()
 	}
 }
 
-const uint8_t texture[] __attribute__((aligned(4))) = {
-  #embed "rott_wall1.64x64.palette_8bpp.twiddled"
-};
-
-void transfer_texture(uint32_t texture_start)
-{
-  // use 4-byte transfers to texture memory, for slightly increased transfer
-  // speed
-  //
-  // It would be even faster to use the SH4 store queue for this operation, or
-  // SH4 DMA.
-
-  sh7091::store_queue_transfer::copy((void *)&texture_memory64[texture_start], texture, (sizeof (texture)));
-}
-
 const uint8_t palette[] __attribute__((aligned(4))) = {
   #embed "rott_palette.dat"
 };
 
 #define PACK_ARGB8888(r, g, b, a) (((a) << 24) | ((r) << 16) | ((g) << 8) | ((b) << 0))
 
-void main()
+void realmain()
 {
-	transfer_init();
-
 	using namespace holly::core;
 	using namespace holly;
 	using holly::holly;
+
+	transfer_init();
 
 	/* palette */
 	holly.PAL_RAM_CTRL = holly::pal_ram_ctrl::pixel_format::argb8888;
@@ -519,6 +449,8 @@ void main()
 	}
 
 	holly.PT_ALPHA_REF = 0xff;
+
+	construct_tilemap();
 
 	// draw 500 frames of cube rotation
 	while (1)

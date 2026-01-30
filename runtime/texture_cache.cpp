@@ -32,7 +32,7 @@ static uint32_t transfer_texture(const void *data, size_t len, uint32_t texture_
 	return texture_address + len;
 }
 
-uint32_t texture_cache_raw(int width, int height, uint32_t type, uint32_t flags, const void *data, size_t len)
+uint32_t texture_cache_raw_palette(int width, int height, uint32_t type, uint32_t flags, uint32_t palette_index, const void *data, size_t len)
 {
 	using namespace holly::core::parameter;
 	using namespace holly::ta;
@@ -49,7 +49,17 @@ uint32_t texture_cache_raw(int width, int height, uint32_t type, uint32_t flags,
 
 	if (width < 8 || width > 1024 || (width & (width - 1)) != 0)
 		return TEXTURE_INVALID;
+
 	if (height < 8 || height > 1024 || (height & (height - 1)) != 0)
+		return TEXTURE_INVALID;
+
+	if ((type == TEXTURE_TYPE_PAL4 || type == TEXTURE_TYPE_PAL8) && palette_index == PALETTE_INVALID)
+		return TEXTURE_INVALID;
+
+	if (type == TEXTURE_TYPE_PAL4 && palette_index % 16)
+		return TEXTURE_INVALID;
+
+	if (type == TEXTURE_TYPE_PAL8 && palette_index % 256)
 		return TEXTURE_INVALID;
 
 	auto& t = textures[num_textures];
@@ -77,16 +87,33 @@ uint32_t texture_cache_raw(int width, int height, uint32_t type, uint32_t flags,
 		t.texture_control_word |= texture_control_word::mip_mapped;
 	}
 
+	if (type == TEXTURE_TYPE_PAL4)
+	{
+		t.texture_control_word |= texture_control_word::palette_selector4(palette_index / 16);
+	}
+
+	if (type == TEXTURE_TYPE_PAL8)
+	{
+		t.texture_control_word |= texture_control_word::palette_selector8(palette_index / 256);
+	}
+
 	switch (type)
 	{
 		case TEXTURE_TYPE_ARGB1555: t.texture_control_word |= texture_control_word::pixel_format::argb1555; break;
 		case TEXTURE_TYPE_RGB565: t.texture_control_word |= texture_control_word::pixel_format::rgb565; break;
 		case TEXTURE_TYPE_ARGB4444: t.texture_control_word |= texture_control_word::pixel_format::argb4444; break;
+		case TEXTURE_TYPE_PAL4: t.texture_control_word |= texture_control_word::pixel_format::palette_4bpp; break;
+		case TEXTURE_TYPE_PAL8: t.texture_control_word |= texture_control_word::pixel_format::palette_8bpp; break;
 	}
 
 	texture_address_next = transfer_texture(data, len, texture_address_next);
 
 	return num_textures++;
+}
+
+uint32_t texture_cache_raw(int width, int height, uint32_t type, uint32_t flags, const void *data, size_t len)
+{
+	return texture_cache_raw_palette(width, height, type, flags, PALETTE_INVALID, data, len);
 }
 
 uint32_t texture_cache_pvr(const pvr_t *pvr)

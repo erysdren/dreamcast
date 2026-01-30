@@ -16,7 +16,9 @@ enum : uint32_t {
 	TEXTURE_TYPE_NONE,
 	TEXTURE_TYPE_ARGB1555,
 	TEXTURE_TYPE_RGB565,
-	TEXTURE_TYPE_ARGB4444
+	TEXTURE_TYPE_ARGB4444,
+	TEXTURE_TYPE_PAL4,
+	TEXTURE_TYPE_PAL8
 };
 
 enum : uint32_t {
@@ -30,6 +32,7 @@ static constexpr uint32_t MAX_TEXTURES = 1024;
 static constexpr uint32_t TEXTURE_INVALID = (uint32_t)-1;
 
 void texture_cache_init(uint32_t texture_address);
+uint32_t texture_cache_raw_palette(int width, int height, uint32_t type, uint32_t flags, uint32_t palette_index, const void *data, size_t len);
 uint32_t texture_cache_raw(int width, int height, uint32_t type, uint32_t flags, const void *data, size_t len);
 uint32_t texture_cache_pvr(const pvr_t *pvr);
 const texture_cache_t *texture_cache_get(uint32_t texture_index);

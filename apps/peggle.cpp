@@ -27,67 +27,6 @@
 
 #include "interrupt.cpp"
 
-static inline uint32_t transfer_ta_global_end_of_list(uint32_t store_queue_ix)
-{
-	using namespace holly::ta;
-	using namespace holly::ta::parameter;
-
-	//
-	// TA "end of list" global transfer
-	//
-	volatile global_parameter::end_of_list * end_of_list = (volatile global_parameter::end_of_list *)&store_queue[store_queue_ix];
-	store_queue_ix += (sizeof (global_parameter::end_of_list));
-
-	end_of_list->parameter_control_word = parameter_control_word::para_type::end_of_list;
-
-	// start store queue transfer of `end_of_list` to the TA
-	pref(end_of_list);
-
-	return store_queue_ix;
-}
-
-static inline uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint32_t texture_index)
-{
-	using namespace holly::core::parameter;
-	using namespace holly::ta;
-	using namespace holly::ta::parameter;
-
-	//
-	// TA polygon global transfer
-	//
-
-	volatile global_parameter::polygon_type_0 * polygon = (volatile global_parameter::polygon_type_0 *)&store_queue[store_queue_ix];
-	store_queue_ix += (sizeof (global_parameter::polygon_type_0));
-
-	polygon->parameter_control_word = parameter_control_word::para_type::polygon_or_modifier_volume
-									| parameter_control_word::list_type::translucent
-									| parameter_control_word::col_type::packed_color
-									| parameter_control_word::texture;
-
-	polygon->isp_tsp_instruction_word = isp_tsp_instruction_word::depth_compare_mode::greater
-										| isp_tsp_instruction_word::culling_mode::no_culling;
-	// Note that it is not possible to use
-	// ISP_TSP_INSTRUCTION_WORD::GOURAUD_SHADING in this isp_tsp_instruction_word,
-	// because `gouraud` is one of the bits overwritten by the value in
-	// parameter_control_word. See DCDBSysArc990907E.pdf page 200.
-
-	const auto* t = texture_cache_get(texture_index);
-
-	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::src_alpha
-									| tsp_instruction_word::dst_alpha_instr::inverse_src_alpha
-									| tsp_instruction_word::fog_control::no_fog
-									| tsp_instruction_word::filter_mode::bilinear_filter
-									| tsp_instruction_word::texture_shading_instruction::decal
-									| t->tsp_instruction_word;
-
-	polygon->texture_control_word = t->texture_control_word;
-
-	// start store queue transfer of `polygon` to the TA
-	pref(polygon);
-
-	return store_queue_ix;
-}
-
 static inline uint32_t transfer_ta_vertex_quad(uint32_t store_queue_ix,
                                                float ax, float ay, float az, float au, float av, uint32_t ac,
                                                float bx, float by, float bz, float bu, float bv, uint32_t bc,
