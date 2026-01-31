@@ -17,8 +17,6 @@
 #include "sh7091/pref.hpp"
 #include "sh7091/store_queue_transfer.hpp"
 
-#include "interrupt.cpp"
-
 enum {
 	TILE_DRAWFLAG_NONE = 0,
 	TILE_DRAWFLAG_NORTH = 1 << 0,
@@ -482,7 +480,7 @@ uint32_t palette[256];
 
 #define PACK_ARGB8888(r, g, b, a) (((a) << 24) | ((r) << 16) | ((g) << 8) | ((b) << 0))
 
-void realmain()
+void main()
 {
 	transfer_init();
 

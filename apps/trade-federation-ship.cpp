@@ -35,8 +35,6 @@
 #include "texture_cache.h"
 #include "maple.h"
 
-#include "interrupt.cpp"
-
 static uint32_t r_ibsp_shader_textures[256];
 static uint32_t r_ibsp_lightmap_textures[256];
 static uint32_t r_fallback_texture = TEXTURE_INVALID;
@@ -478,7 +476,7 @@ static void transfer_lightmaps()
 	}
 }
 
-void realmain()
+void main()
 {
 	//////////////////////////////////////////////////////////////////////////////
 	// initialize holly graphics units

@@ -22,8 +22,6 @@
 #include "texture_cache.h"
 #include "maple.h"
 
-#include "interrupt.cpp"
-
 #include "tinyphysicsengine.h"
 
 static inline uint32_t transfer_ta_vertex_quad(uint32_t store_queue_ix,
@@ -132,7 +130,7 @@ TPE_Vec3 environmentDistance(TPE_Vec3 p, TPE_Unit maxD)
 	return TPE_envAABoxInside(p,TPE_vec3(0,0,0),TPE_vec3(ROOM_W,ROOM_H,ROOM_W));
 }
 
-void realmain()
+void main()
 {
 	//////////////////////////////////////////////////////////////////////////////
 	// initialize holly graphics units

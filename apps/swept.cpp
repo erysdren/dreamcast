@@ -22,8 +22,6 @@
 #include "texture_cache.h"
 #include "maple.h"
 
-#include "interrupt.cpp"
-
 static inline uint32_t transfer_ta_vertex_quad(uint32_t store_queue_ix,
                                                float ax, float ay, float az, uint32_t ac,
                                                float bx, float by, float bz, uint32_t bc,
@@ -252,7 +250,7 @@ static void transfer_scene(world_t* world)
 
 #define countof(a) (sizeof(a)/sizeof(*(a)))
 
-void realmain()
+void main()
 {
 	//////////////////////////////////////////////////////////////////////////////
 	// initialize holly graphics units

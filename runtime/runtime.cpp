@@ -36,6 +36,8 @@ static void __attribute__((section(".text.startup.copy"))) copy(uint32_t* start,
 	}
 }
 
+void interrupts_init();
+
 // 4mb heap
 static uint8_t heap[4 * 1024 * 1024] __attribute__((aligned(32)));
 
@@ -71,4 +73,7 @@ extern "C" void __attribute__((section(".text.startup.runtime_init"))) runtime_i
 
 	// initialize heap
 	ta_init(heap, heap + sizeof(heap), 256, 16, sizeof(void *));
+
+	// initialize interrupts
+	interrupts_init();
 }

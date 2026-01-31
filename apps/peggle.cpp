@@ -25,8 +25,6 @@
 #include "texture_cache.h"
 #include "maple.h"
 
-#include "interrupt.cpp"
-
 static inline uint32_t transfer_ta_vertex_quad(uint32_t store_queue_ix,
                                                float ax, float ay, float az, float au, float av, uint32_t ac,
                                                float bx, float by, float bz, float bu, float bv, uint32_t bc,
@@ -249,7 +247,7 @@ ball_t* closest_peg(vec2 origin, float maxdist)
 	return &pegs[pen];
 }
 
-void realmain()
+void main()
 {
 	//////////////////////////////////////////////////////////////////////////////
 	// initialize holly graphics units
