@@ -84,6 +84,8 @@ bool wildcmp(const char *wild, const char *string);
 #define floorf(n) __builtin_floorf(n)
 #define fmin(a, b) __builtin_fminf(a, b)
 #define fminf(a, b) __builtin_fminf(a, b)
+#define fmax(a, b) __builtin_fmaxf(a, b)
+#define fmaxf(a, b) __builtin_fmaxf(a, b)
 #define fmod(a, b) __builtin_fmodf(a, b)
 #define fmodf(a, b) __builtin_fmodf(a, b)
 #define sqrt(a) __builtin_sqrtf(a)
