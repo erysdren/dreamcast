@@ -308,6 +308,19 @@ void main()
 	while (1)
 	{
 		//////////////////////////////////////////////////////////////////////////////
+		// maple
+		//////////////////////////////////////////////////////////////////////////////
+
+		maple_ft0_data_t maple_data;
+		if (maple_read_ft0(&maple_data, 0))
+		{
+			if (!(maple_data.digital_button & (1 << 7)))
+				world.boxes[0].velocity[0] += 300 * 0.01f;
+			else if (!(maple_data.digital_button & (1 << 6)))
+				world.boxes[0].velocity[0] -= 300 * 0.01f;
+		}
+
+		//////////////////////////////////////////////////////////////////////////////
 		// physics
 		//////////////////////////////////////////////////////////////////////////////
 
@@ -319,10 +332,11 @@ void main()
 		world.boxes[0].origin[0] += world.boxes[0].velocity[0] * collisiontime;
 		world.boxes[0].origin[1] += world.boxes[0].velocity[1] * collisiontime;
 		float remainingtime = 1.0f - collisiontime;
-
-		float dotprod = glm_vec2_dot(world.boxes[0].velocity, normal) * remainingtime;
+		float dotprod = (world.boxes[0].velocity[0] * normal[1] + world.boxes[0].velocity[1] * normal[0]) * remainingtime;
 		world.boxes[0].velocity[0] = dotprod * normal[1];
 		world.boxes[0].velocity[1] = dotprod * normal[0];
+
+		printf("%f %f\n", world.boxes[0].velocity[0], world.boxes[0].velocity[1]);
 
 		//////////////////////////////////////////////////////////////////////////////
 		// start the holly frame
