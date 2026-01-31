@@ -1,3 +1,5 @@
+#include "maple.h"
+
 #include "memorymap.h"
 
 #include "holly/core/object_list_bits.hpp"
@@ -70,6 +72,8 @@ void construct_tilemap()
 				tilemap[y][x] = tile_t{ texture_index, 0, TILE_DRAWFLAG_NONE };
 		}
 	}
+
+	tilemap[1][1] = tile_t{ texture_index, 16, TILE_DRAWFLAG_NONE };
 }
 
 static inline uint32_t transfer_ta_vertex_quad(uint32_t store_queue_ix,
@@ -203,6 +207,17 @@ float fclamp(float i, float min, float max)
 	return __builtin_fmin(__builtin_fmax(i, min), max);
 }
 
+float fremap(float value, float a1, float a2, float b1, float b2)
+{
+	return b1 + (value - a1) * (b2 - b1) / (a2 - a1);
+}
+
+float fwrap(float value, float mod)
+{
+	float cmp = value < 0;
+	return cmp * mod + __builtin_fmodf(value, mod) - cmp;
+}
+
 int imin(int a, int b)
 {
 	return a < b ? a : b;
@@ -216,6 +231,17 @@ int imax(int a, int b)
 int iclamp(int i, int min, int max)
 {
 	return imin(imax(i, min), max);
+}
+
+int iremap(int value, int a1, int a2, int b1, int b2)
+{
+	return b1 + (value - a1) * (b2 - b1) / (a2 - a1);
+}
+
+int iwrap(int value, int mod)
+{
+	int cmp = value < 0;
+	return cmp * mod + (value % mod) - cmp;
 }
 
 typedef struct ray_hit {
@@ -382,6 +408,7 @@ void raycast_column(int x)
 		if (tile->height > 0)
 		{
 			float wall_x;
+			float wall_y;
 
 			// get wall impact point
 			if (!hit.side)
@@ -389,36 +416,31 @@ void raycast_column(int x)
 			else
 				wall_x = camera.origin[0] + dist * hit.ray_dir[0];
 
-			wall_x -= __builtin_floorf(wall_x);
+			wall_x -= (int)wall_x;
+
+			wall_y = 1; // fremap(0, line_start, line_end, 0, tile->height * 0.125f);
 
 			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, tile->texture_index);
 
-			vec3 vpa = (vec3){x, line_start_c, 0.1f};
-			vec3 vpb = (vec3){x, line_end_c, 0.1f};
-			vec3 vpc = (vec3){x + 1, line_start_c, 0.1f};
-			vec3 vpd = (vec3){x + 1, line_end_c, 0.1f};
+			vec3 vpa = (vec3){(float)x, (float)line_start_c, 0.1f};
+			vec3 vpb = (vec3){(float)x + 1, (float)line_start_c, 0.1f};
+			vec3 vpc = (vec3){(float)x + 1, (float)line_end_c, 0.1f};
+			vec3 vpd = (vec3){(float)x, (float)line_end_c, 0.1f};
 
 			vec2 vta = (vec2){0, 0};
-			vec2 vtb = (vec2){0, 0};
-			vec2 vtc = (vec2){0, 0};
-			vec2 vtd = (vec2){0, 0};
-
-#if 0
-			printf("vpa: %f %f\n", vpa[0], vpa[1]);
-			printf("vpb: %f %f\n", vpb[0], vpb[1]);
-			printf("vpc: %f %f\n", vpc[0], vpc[1]);
-			printf("vpd: %f %f\n\n", vpd[0], vpd[1]);
-#endif
+			vec2 vtb = (vec2){wall_x, 0};
+			vec2 vtc = (vec2){wall_x, wall_y};
+			vec2 vtd = (vec2){0, wall_y};
 
 			store_queue_ix = transfer_ta_vertex_quad(store_queue_ix,
 														vpa[0], vpa[1], vpa[2], vta[0], vta[1], 0,
 														vpb[0], vpb[1], vpb[2], vtb[0], vtb[1], 0,
 														vpc[0], vpc[1], vpc[2], vtc[0], vtc[1], 0,
 														vpd[0], vpd[1], vpd[2], vtd[0], vtd[1], 0);
-
-			if (hit_type == RAY_HIT_WALL)
-				ystart = line_start_c;
 		}
+
+		if (hit_type == RAY_HIT_WALL)
+			ystart = line_start_c;
 	}
 
 	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
@@ -477,8 +499,19 @@ void realmain()
 	camera.yaw = 0;
 	camera.horizon = SCREEN_HEIGHT / 2;
 
+	maple_init();
+
 	while (1)
 	{
+		maple_ft0_data_t maple_data;
+		if (maple_read_ft0(&maple_data, 0))
+		{
+			if (!(maple_data.digital_button & (1 << 7)))
+				camera.yaw -= 0.05f;
+			else if (!(maple_data.digital_button & (1 << 6)))
+				camera.yaw += 0.05f;
+		}
+
 		transfer_frame_start();
 
 		transfer_scene();
