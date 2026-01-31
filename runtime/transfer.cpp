@@ -473,8 +473,8 @@ uint32_t transfer_ta_global_polygon(uint32_t store_queue_ix, uint32_t texture_in
 	// because `gouraud` is one of the bits overwritten by the value in
 	// parameter_control_word. See DCDBSysArc990907E.pdf page 200.
 
-	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::one
-									| tsp_instruction_word::dst_alpha_instr::zero
+	polygon->tsp_instruction_word = tsp_instruction_word::src_alpha_instr::src_alpha
+									| tsp_instruction_word::dst_alpha_instr::inverse_src_alpha
 									| tsp_instruction_word::fog_control::no_fog
 									| tsp_instruction_word::filter_mode::bilinear_filter
 									| tsp_instruction_word::texture_shading_instruction::decal
