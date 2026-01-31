@@ -426,6 +426,15 @@ void raycast_column(int x)
 
 void transfer_scene()
 {
+	{
+		using namespace sh7091;
+		using sh7091::sh7091;
+
+		// set the store queue destination address to the TA Polygon Converter FIFO
+		sh7091.CCN.QACR0 = sh7091::ccn::qacr0::address(ta_fifo_polygon_converter);
+		sh7091.CCN.QACR1 = sh7091::ccn::qacr1::address(ta_fifo_polygon_converter);
+	}
+
 	camera.yaw_sin = sin(camera.yaw);
 	camera.yaw_cos = cos(camera.yaw);
 
