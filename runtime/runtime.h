@@ -122,6 +122,9 @@ void makevectors(const vec3 angles, vec3 forward, vec3 right, vec3 up);
 #include "texture_cache.h"
 #include "transfer.h"
 
+/* timer */
+#include "timer.h"
+
 #ifdef __cplusplus
 }
 #endif
