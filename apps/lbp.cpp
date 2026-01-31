@@ -104,8 +104,8 @@ static void transfer_scene(TPE_World* world)
 
 			for (int j = 0; j < 4; j++)
 			{
-				vp[j][0] = world->bodies[i].joints[j].position.x / TPE_F * 128;
-				vp[j][1] = world->bodies[i].joints[j].position.y / TPE_F * 128;
+				vp[j][0] = world->bodies[i].joints[j].position.x / TPE_F;
+				vp[j][1] = world->bodies[i].joints[j].position.y / TPE_F;
 				vp[j][2] = 0.1f;
 
 				printf("%f %f %f\n", vp[j][0], vp[j][1], vp[j][2]);
@@ -124,8 +124,8 @@ static void transfer_scene(TPE_World* world)
 	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
 }
 
-#define ROOM_W (TPE_F * 10)
-#define ROOM_H ((480.0f * ROOM_W) / 640.0f)
+#define ROOM_W (640 * TPE_F)
+#define ROOM_H (480 * TPE_F)
 
 TPE_Vec3 environmentDistance(TPE_Vec3 p, TPE_Unit maxD)
 {
@@ -162,7 +162,7 @@ void realmain()
 	{
 		if (i != 2)
 		{
-			TPE_makeCenterRectFull(joints + joints_used, connections + connections_used, TPE_F, TPE_F, TPE_F / 5);
+			TPE_makeCenterRectFull(joints + joints_used, connections + connections_used, 32 * TPE_F, 32 * TPE_F, TPE_F / 5);
 
 			TPE_bodyInit(&bodies[i], &joints[joints_used], 5, &connections[connections_used], 10, TPE_F / 5);
 
@@ -186,7 +186,7 @@ void realmain()
 		bodies[i].friction = 4 * TPE_F / 5;
 		bodies[i].elasticity = TPE_F / 5;
 
-		TPE_bodyMoveBy(&bodies[i], TPE_vec3(-2 * TPE_F + i * 2 * TPE_F,0,0));
+		TPE_bodyMoveBy(&bodies[i], TPE_vec3(32 * TPE_F + i * 64 * TPE_F, 0, 0));
 	}
 
 	TPE_worldInit(&world, bodies, 4, environmentDistance);
