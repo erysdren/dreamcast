@@ -44,20 +44,28 @@ typedef struct tile {
 
 static tile_t tilemap[TILEMAP_HEIGHT][TILEMAP_WIDTH];
 
-const uint8_t texture[] __attribute__((aligned(4))) = {
+const uint8_t rott_wall1[] __attribute__((aligned(4))) = {
 	#embed "rott_wall1.64x64.palette_8bpp.twiddled"
 };
 
+static uint32_t palette_index = PALETTE_INVALID;
+
 void construct_tilemap()
 {
-	uint32_t texture_index = texture_cache_raw(64, 64, TEXTURE_TYPE_PAL8, TEXTURE_FLAG_TWIDDLED, texture, sizeof(texture));
+	uint32_t texture_index = texture_cache_raw_palette(64, 64, TEXTURE_TYPE_PAL8, TEXTURE_FLAG_TWIDDLED, palette_index, rott_wall1, sizeof(rott_wall1));
+
+	if (texture_index == TEXTURE_INVALID)
+	{
+		printf("failed to transfer rott_wall1!\n");
+		return;
+	}
 
 	for (int y = 0; y < TILEMAP_HEIGHT; y++)
 	{
 		for (int x = 0; x < TILEMAP_WIDTH; x++)
 		{
 			if (y == 0 || y == TILEMAP_HEIGHT - 1 || x == 0 || x == TILEMAP_WIDTH - 1)
-				tilemap[y][x] = tile_t{ texture_index, 1, TILE_DRAWFLAG_NONE };
+				tilemap[y][x] = tile_t{ texture_index, 8, TILE_DRAWFLAG_NONE };
 			else
 				tilemap[y][x] = tile_t{ texture_index, 0, TILE_DRAWFLAG_NONE };
 		}
@@ -385,15 +393,22 @@ void raycast_column(int x)
 
 			store_queue_ix = transfer_ta_global_polygon(store_queue_ix, tile->texture_index);
 
-			vec3 vpa = (vec3){x, line_start_c, 0};
-			vec3 vpb = (vec3){x, line_end_c, 0};
-			vec3 vpc = (vec3){x + 1, line_start_c, 0};
-			vec3 vpd = (vec3){x + 1, line_end_c, 0};
+			vec3 vpa = (vec3){x, line_start_c, 0.1f};
+			vec3 vpb = (vec3){x, line_end_c, 0.1f};
+			vec3 vpc = (vec3){x + 1, line_start_c, 0.1f};
+			vec3 vpd = (vec3){x + 1, line_end_c, 0.1f};
 
-			vec2 vta = (vec2){};
-			vec2 vtb = (vec2){};
-			vec2 vtc = (vec2){};
-			vec2 vtd = (vec2){};
+			vec2 vta = (vec2){0, 0};
+			vec2 vtb = (vec2){0, 0};
+			vec2 vtc = (vec2){0, 0};
+			vec2 vtd = (vec2){0, 0};
+
+#if 0
+			printf("vpa: %f %f\n", vpa[0], vpa[1]);
+			printf("vpb: %f %f\n", vpb[0], vpb[1]);
+			printf("vpc: %f %f\n", vpc[0], vpc[1]);
+			printf("vpd: %f %f\n\n", vpd[0], vpd[1]);
+#endif
 
 			store_queue_ix = transfer_ta_vertex_quad(store_queue_ix,
 														vpa[0], vpa[1], vpa[2], vta[0], vta[1], 0,
@@ -401,13 +416,15 @@ void raycast_column(int x)
 														vpc[0], vpc[1], vpc[2], vtc[0], vtc[1], 0,
 														vpd[0], vpd[1], vpd[2], vtd[0], vtd[1], 0);
 
+			if (hit_type == RAY_HIT_WALL)
+				ystart = line_start_c;
 		}
 	}
 
 	store_queue_ix = transfer_ta_global_end_of_list(store_queue_ix);
 }
 
-void raycast()
+void transfer_scene()
 {
 	camera.yaw_sin = sin(camera.yaw);
 	camera.yaw_cos = cos(camera.yaw);
@@ -426,38 +443,36 @@ void raycast()
 	}
 }
 
-const uint8_t palette[] __attribute__((aligned(4))) = {
+const uint8_t rott_palette[] __attribute__((aligned(4))) = {
   #embed "rott_palette.dat"
 };
+
+uint32_t palette[256];
 
 #define PACK_ARGB8888(r, g, b, a) (((a) << 24) | ((r) << 16) | ((g) << 8) | ((b) << 0))
 
 void realmain()
 {
-	using namespace holly::core;
-	using namespace holly;
-	using holly::holly;
-
 	transfer_init();
 
-	/* palette */
-	holly.PAL_RAM_CTRL = holly::pal_ram_ctrl::pixel_format::argb8888;
+	transfer_init_palette(PALETTE_TYPE_ARGB8888, 0xFF);
 
 	for (int i = 0; i < 256; i++)
-	{
-		holly.PALETTE_RAM[i] = PACK_ARGB8888(palette[i * 3 + 0], palette[i * 3 + 1], palette[i * 3 + 2], 255);
-	}
+		palette[i] = PACK_ARGB8888(rott_palette[i * 3 + 0], rott_palette[i * 3 + 1], rott_palette[i * 3 + 2], 255);
 
-	holly.PT_ALPHA_REF = 0xff;
+	palette_index = transfer_palette(palette, 256);
 
 	construct_tilemap();
 
-	// draw 500 frames of cube rotation
+	glm_vec3_copy((vec3){TILEMAP_WIDTH / 2, TILEMAP_HEIGHT / 2, 0.5}, camera.origin);
+	camera.yaw = 0;
+	camera.horizon = SCREEN_HEIGHT / 2;
+
 	while (1)
 	{
 		transfer_frame_start();
 
-		raycast();
+		transfer_scene();
 
 		transfer_frame_end();
 	}
