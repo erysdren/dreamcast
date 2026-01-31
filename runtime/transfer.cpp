@@ -306,7 +306,7 @@ void transfer_frame_start(void)
 	holly.SOFTRESET = softreset::ta_soft_reset;
 	holly.SOFTRESET = 0;
 
-        ta_init();
+	ta_init();
 
 	// TA_LIST_INIT needs to be written (every frame) prior to the first FIFO
 	// write.
