@@ -84,8 +84,7 @@ struct line_t {
 };
 
 struct box_t {
-	vec2 mins;
-	vec2 maxs;
+	vec2 size;
 	vec2 origin;
 	vec2 velocity;
 };
@@ -99,41 +98,30 @@ struct world_t {
 
 static float sweptaabb(box_t& b1, box_t& b2, vec2 normal)
 {
-	vec2 b1_origin, b1_size;
-	vec2 b2_origin, b2_size;
-
 	float xInvEntry, yInvEntry;
 	float xInvExit, yInvExit;
-
-	glm_vec2_add(b1.origin, b1.mins, b1_origin);
-	glm_vec2_add(b1.origin, b1.maxs, b1_size);
-	glm_vec2_sub(b1_size, b1_origin, b1_size);
-
-	glm_vec2_add(b2.origin, b2.mins, b2_origin);
-	glm_vec2_add(b2.origin, b2.maxs, b2_size);
-	glm_vec2_sub(b2_size, b2_origin, b2_size);
 
 	// find the distance between the objects on the near and far sides for both x and y
 	if (b1.velocity[0] > 0.0f)
 	{
-		xInvEntry = b2_origin[0] - (b1_origin[0] + b1_size[0]);
-		xInvExit = (b2_origin[0] + b2_size[0]) - b1_origin[0];
+		xInvEntry = b2.origin[0] - (b1.origin[0] + b1.size[0]);
+		xInvExit = (b2.origin[0] + b2.size[0]) - b1.origin[0];
 	}
 	else
 	{
-		xInvEntry = (b2_origin[0] + b2_size[0]) - b1_origin[0];
-		xInvExit = b2_origin[0] - (b1_origin[0] + b1_size[0]);
+		xInvEntry = (b2.origin[0] + b2.size[0]) - b1.origin[0];
+		xInvExit = b2.origin[0] - (b1.origin[0] + b1.size[0]);
 	}
 
 	if (b1.velocity[1] > 0.0f)
 	{
-		yInvEntry = b2_origin[1] - (b1_origin[1] + b1_size[1]);
-		yInvExit = (b2_origin[1] + b2_size[1]) - b1_origin[1];
+		yInvEntry = b2.origin[1] - (b1.origin[1] + b1.size[1]);
+		yInvExit = (b2.origin[1] + b2.size[1]) - b1.origin[1];
 	}
 	else
 	{
-		yInvEntry = (b2_origin[1] + b2_size[1]) - b1_origin[1];
-		yInvExit = b2_origin[1] - (b1_origin[1] + b1_size[1]);
+		yInvEntry = (b2.origin[1] + b2.size[1]) - b1.origin[1];
+		yInvExit = b2.origin[1] - (b1.origin[1] + b1.size[1]);
 	}
 
 	// find time of collision and time of leaving for each axis (if statement is to prevent divide by zero)
@@ -224,17 +212,17 @@ static void transfer_scene(world_t* world)
 		vec3 vp[4] = {{0, 0, 0.1f}, {0, 0, 0.1f}, {0, 0, 0.1f}};
 		uint32_t vc[4] = {0xff0000, 0x00ff00, 0x0000ff, 0xffff00};
 
-		vp[0][0] = world->boxes[i].origin[0] + world->boxes[i].mins[0];
-		vp[0][1] = world->boxes[i].origin[1] + world->boxes[i].mins[1];
+		vp[0][0] = world->boxes[i].origin[0];
+		vp[0][1] = world->boxes[i].origin[1];
 
-		vp[1][0] = world->boxes[i].origin[0] + world->boxes[i].mins[0];
-		vp[1][1] = world->boxes[i].origin[1] + world->boxes[i].maxs[1];
+		vp[1][0] = world->boxes[i].origin[0];
+		vp[1][1] = world->boxes[i].origin[1] + world->boxes[i].size[1];
 
-		vp[2][0] = world->boxes[i].origin[0] + world->boxes[i].maxs[0];
-		vp[2][1] = world->boxes[i].origin[1] + world->boxes[i].maxs[1];
+		vp[2][0] = world->boxes[i].origin[0] + world->boxes[i].size[0];
+		vp[2][1] = world->boxes[i].origin[1] + world->boxes[i].size[1];
 
-		vp[3][0] = world->boxes[i].origin[0] + world->boxes[i].maxs[0];
-		vp[3][1] = world->boxes[i].origin[1] + world->boxes[i].mins[1];
+		vp[3][0] = world->boxes[i].origin[0] + world->boxes[i].size[0];
+		vp[3][1] = world->boxes[i].origin[1];
 
 		store_queue_ix = transfer_ta_global_polygon(store_queue_ix, TEXTURE_INVALID);
 
@@ -286,13 +274,11 @@ void main()
 
 	// boxes
 	glm_vec2_copy((vec2){640/2, 480/2}, boxes[0].origin);
-	glm_vec2_copy((vec2){-16, -16}, boxes[0].mins);
-	glm_vec2_copy((vec2){16, 16}, boxes[0].maxs);
+	glm_vec2_copy((vec2){32, 32}, boxes[0].size);
 	glm_vec2_zero(boxes[0].velocity);
 
-	glm_vec2_copy((vec2){640/2, 480-16}, boxes[1].origin);
-	glm_vec2_copy((vec2){-320, -16}, boxes[1].mins);
-	glm_vec2_copy((vec2){320, 16}, boxes[1].maxs);
+	glm_vec2_copy((vec2){0, 480-32}, boxes[1].origin);
+	glm_vec2_copy((vec2){640, 32}, boxes[1].size);
 	glm_vec2_zero(boxes[1].velocity);
 
 	// world
@@ -307,6 +293,8 @@ void main()
 
 	while (1)
 	{
+		vec2 accel = GLM_VEC2_ZERO_INIT;
+
 		//////////////////////////////////////////////////////////////////////////////
 		// maple
 		//////////////////////////////////////////////////////////////////////////////
@@ -315,28 +303,66 @@ void main()
 		if (maple_read_ft0(&maple_data, 0))
 		{
 			if (!(maple_data.digital_button & (1 << 7)))
-				world.boxes[0].velocity[0] += 300 * 0.01f;
+				accel[0] += 300;
 			else if (!(maple_data.digital_button & (1 << 6)))
-				world.boxes[0].velocity[0] -= 300 * 0.01f;
+				accel[0] -= 300;
 		}
 
+#if 1
 		//////////////////////////////////////////////////////////////////////////////
 		// physics
 		//////////////////////////////////////////////////////////////////////////////
 
-		world.boxes[0].velocity[1] += 300 * 0.01f;
+		accel[1] += 300;
 
 		vec2 normal = GLM_VEC2_ZERO_INIT;
 
+		float dt = 0.01f;
+		glm_vec2_muladds(accel, dt, world.boxes[0].velocity);
 		float collisiontime = sweptaabb(world.boxes[0], world.boxes[1], normal);
 		world.boxes[0].origin[0] += world.boxes[0].velocity[0] * collisiontime;
 		world.boxes[0].origin[1] += world.boxes[0].velocity[1] * collisiontime;
 		float remainingtime = 1.0f - collisiontime;
+		// float dotprod = glm_vec2_dot(world.boxes[0].velocity, normal) * remainingtime;
 		float dotprod = (world.boxes[0].velocity[0] * normal[1] + world.boxes[0].velocity[1] * normal[0]) * remainingtime;
 		world.boxes[0].velocity[0] = dotprod * normal[1];
 		world.boxes[0].velocity[1] = dotprod * normal[0];
 
-		printf("%f %f\n", world.boxes[0].velocity[0], world.boxes[0].velocity[1]);
+		// printf("collisiontime: %f origin: %f %f velocity: %f %f normal %f %f\n", collisiontime, world.boxes[0].origin[0], world.boxes[0].origin[1], world.boxes[0].velocity[0], world.boxes[0].velocity[1], normal[0], normal[1]);
+#endif
+
+#if 0
+		//////////////////////////////////////////////////////////////////////////////
+		// physics
+		//////////////////////////////////////////////////////////////////////////////
+
+		accel[1] += 300;
+
+		// do box collision
+		float friction = 1;
+		float dt = 0.01f;
+		float trace_fraction = 1.0f;
+		vec2 trace_endpos;
+		glm_vec2_muladds(accel, dt, world.boxes[0].velocity);
+		glm_vec2_copy(world.boxes[0].origin, trace_endpos);
+		for (int bump = 0; bump < 3; bump++)
+		{
+			vec2 normal, temp;
+
+			glm_vec2_muladds(world.boxes[0].velocity, dt, world.boxes[0].origin);
+
+			trace_fraction = sweptaabb(world.boxes[0], world.boxes[1], normal, trace_endpos);
+
+			if (trace_fraction == 1.0f)
+				break;
+
+			glm_vec2_mulsubs(normal, glm_vec2_dot(world.boxes[0].velocity, normal), world.boxes[0].velocity);
+			glm_vec2_scale(world.boxes[0].velocity, friction, temp);
+			glm_vec2_mulsubs(temp, dt, world.boxes[0].velocity);
+
+			dt *= 1.0f - trace_fraction;
+		}
+#endif
 
 		//////////////////////////////////////////////////////////////////////////////
 		// start the holly frame
